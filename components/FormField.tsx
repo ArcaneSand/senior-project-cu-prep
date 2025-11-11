@@ -43,6 +43,6 @@ const FormField = <T extends FieldValues>({
       )}
     />
   );
-};
+}
 
 export default FormField;

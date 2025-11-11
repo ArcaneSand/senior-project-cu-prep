@@ -1,3 +1,5 @@
+type AuthFormType = "sign-in" | "sign-up" 
+
 interface SignInParams {
   email: string;
   idToken: string;
