@@ -6,6 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import React from 'react'
 
+
 const page = async () => {
   const user = await getCurrentUser();
   const [userInterviews] = await Promise.all([
