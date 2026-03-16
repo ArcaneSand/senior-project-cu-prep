@@ -33,12 +33,21 @@ interface Interview {
   level: string;
   questions: string[];
   techstack: string[];
-  createdAt: string;
+  createAt: string;
   userId: string;
   type: string;
   finalized: boolean;
 }
-
+interface InterviewCardProps {
+  interviewId?: string;
+  id: string
+  role: string
+  type: string
+  level: string
+  techstack: string[]
+  questions: string[]
+  createAt: string
+}
 interface Feedback {
   id: string;
   interviewId: string;
@@ -71,4 +80,20 @@ interface InterviewRequest {
   techstack: string;
   amount: number;
   userid: string;
+}
+
+type Message =
+  | TranscriptMessage
+  | FunctionCallMessage
+  | FunctionCallResultMessage;
+interface RouteParams {
+  params: Promise<Record<string, string>>;
+  searchParams: Promise<Record<string, string>>;
+}
+
+interface CreateFeedbackParams {
+  interviewId: string;
+  userId: string;
+  transcript: { role: string; content: string }[];
+  feedbackId?: string;
 }

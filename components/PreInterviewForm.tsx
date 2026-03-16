@@ -12,12 +12,12 @@ import { generateQuestions } from "@/lib/actions/general.action";
 
 
 const preInterviewFormSchema = z.object({
-  type: z.string().min(2).max(100),
-  role: z.string().min(2).max(100),
-  level: z.string().min(2).max(100),
-  techstack: z.string().min(2).max(100),
-  amount: z.number().min(1),
-  userid: z.string().min(2).max(100),
+  type: z.string().min(1, "Please select an interview type"),
+  role: z.string().min(2, "Role must be at least 2 characters").max(100),
+  level: z.string().min(1, "Please select a level"),
+  techstack: z.string().min(2, "Tech stack must be at least 2 characters").max(100),
+  amount: z.number().min(1, "Amount must be at least 1").max(50, "Maximum 50 questions allowed"),
+  userid: z.string().optional(),
 });
 
 const PreInterviewForm = () => {
@@ -31,13 +31,14 @@ const PreInterviewForm = () => {
       role: "",
       level: "",
       techstack: "",
-      amount: 0,
+      amount: 5,
       userid: "",
     },
   })
  
   // 2. Define a submit handler.
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log("Form Values:", values);
     try{
         const { type, role, level, techstack, amount} = values;
         const userid = await getCurrentUser();
@@ -68,8 +69,8 @@ const PreInterviewForm = () => {
     }
   }
   return (
-    <div className="card-border lg:min-w-[566px]">
-      <div className="flex flex-col gap-6 card py-14 px-10">
+    <div className="flex justify-center lg:min-w-[566px] ">
+      <div className="flex flex-col gap-6 px-10 max-w-[646px] w-full">
 
         <Form {...form}>
           <form
@@ -81,15 +82,17 @@ const PreInterviewForm = () => {
               control={form.control}
               name="type"
               label="Type"
-              placeholder="Your email address"
+              placeholder="type of interview"
               type="type"
+              variant="radio"
+              options={[{ value: 'Behavioral', label: 'Behavioral' }, { value: 'Technical', label: 'Technical' }]}
             />
 
             <FormField
               control={form.control}
               name="role"
               label="role"
-              placeholder="Enter your role here"
+              placeholder="Ex : Frontend Developer, Backend Developer, Data Scientist etc"
               type="role"
             />
 
@@ -99,23 +102,25 @@ const PreInterviewForm = () => {
               label="Level"
               placeholder="Enter your level here"
               type="level"
+              variant="radio"
+              options={[{ value: 'junior', label: 'Junior' }, { value: 'middle', label: 'Middle' }, { value: 'senior', label: 'Senior' }]}
             />
             <FormField
               control={form.control}
               name="techstack"
               label="Tech Stack"
-              placeholder="Enter your tech stack here"
+              placeholder="Ex: React, Node.js, Python etc"
               type="techstack"
             />
             <FormField
               control={form.control}
               name="amount"
               label="Amount"
-              placeholder="Enter your amount here"
-              type="amount"
+              placeholder="How many questions do you want to generate?"
+              type="number"
             />
 
-            <Button className="btn" type="submit">
+            <Button className="gradiant-bg" type="submit">
               Submit
             </Button>
           </form>
