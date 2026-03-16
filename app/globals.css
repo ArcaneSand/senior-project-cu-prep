@@ -36,7 +36,9 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
+  --color-card: var(--card);  
+  --color-bgc: #0b0f14;
+  --color-bgc-2: #0e141b;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -117,7 +119,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground ;
   }
 }
 
@@ -132,6 +134,14 @@
 
   .card-border{
     @apply p-0.5 rounded-2xl w-fit
+  }
+
+  .grad-text{
+    @apply bg-clip-text text-transparent bg-linear-[25deg,#fff,#bcd7ff_40%,#a79bff_65%,#6cf2ff]
+  }
+
+  .h-text {
+    @apply md:text-4xl lg:text-6xl leading-[1.02] -tracking-[.4px] text-white font-black
   }
 
 
