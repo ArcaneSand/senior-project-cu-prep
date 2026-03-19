@@ -1,5 +1,5 @@
 import Hero from "@/components/ui/page/root/Hero";
-import { getCurrentUser } from "@/lib/action/auth.action";
+import { getCurrentUser } from "@/lib/actions/auth.action";
 import Image from "next/image";
 
 const page = async()=> {
