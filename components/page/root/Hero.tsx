@@ -1,4 +1,5 @@
 import { Check, ChevronRight, Mic } from 'lucide-react'
+import Link from 'next/link'
 import React from 'react'
 
 const Hero = () => {
@@ -17,12 +18,13 @@ const Hero = () => {
               Practice real interview scenarios with our advanced AI voice assistant. Get instant feedback, improve your responses, and boost your confidence.
             </p>
             <div className="flex gap-4">
-              <button 
+              <Link
+                href="/interview"
                 className="px-8 py-4 bg-linear-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-xl transition-all flex items-center gap-2"
               >
                 Start Practicing Free
                 <ChevronRight size={20} />
-              </button>
+              </Link>
               <button className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:border-gray-400 transition-all">
                 Watch Demo
               </button>

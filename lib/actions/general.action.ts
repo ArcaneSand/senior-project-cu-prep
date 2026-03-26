@@ -1,77 +1,34 @@
 "use server";
 
 import { db } from "@/firebase/admin";
-import { generateText, generateObject} from "ai";
+import { generateText, generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { feedbackSchema } from "@/constants";
+import { geminiModel } from "@/lib/ai.config";
 
 export async function getInterviewsByUserId(
   userId: string
 ): Promise<Interview[] | null> {
-  // const logInterview = await db.collection("interviews").where("userId", "==", userId).get();
-  // console.log("log interview by id size",logInterview.size)
-  // logInterview.docs.forEach(doc => console.log(doc.id, doc.data()));
-
   const interviews = await db
     .collection("interviews")
     .where("userId", "==", userId)
     .orderBy("createAt", "desc")
     .get();
-  // console.log("interview by id size",interviews.size)
-  // interviews.docs.forEach(doc => console.log(doc.id, doc.data()));
+
   return interviews.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
   })) as Interview[];
 }
 
-
-export async function getInverviewsByID(id:string ): Promise<Interview| null> {
-  const interviews = await db
-    .collection('interviews')
-    .doc(id)
-    .get();
-    
-  return interviews.data() as Interview|null;
+export async function getInverviewsByID(id: string): Promise<Interview | null> {
+  const interviews = await db.collection("interviews").doc(id).get();
+  return interviews.data() as Interview | null;
 }
 
-export async function generateQuestions(params: InterviewRequest){
-    const { type, role, level, techstack, amount,userid}=params;
-
-    try{
-        const {text:questions} = await generateText({
-            model: google('gemini-2.0-flash-001'),
-            prompt: `Prepare questions for a job interview.
-        The job role is ${role}.
-        The job experience level is ${level}.
-        The tech stack used in the job is: ${techstack}.
-        The focus between behavioural and technical questions should lean towards: ${type}.
-        The amount of questions required is: ${amount}.
-        Please return only the questions, without any additional text.
-        The questions are going to be read by a voice assistant so do not use "/" or "*" or any other special characters which might break the voice assistant.
-        Return the questions formatted like this:
-        ["Question 1", "Question 2", "Question 3"]
-        
-        Thank you! <3
-        `,
-        });
-
-        const interview = {
-            role,type,level,
-            techstack: (techstack as string).split(','),
-            questions: JSON.parse(questions),
-            userId: userid,
-            finalized: true,
-            createAt: new Date().toISOString()
-        }
-
-        await db.collection("interviews").add(interview);
-
-        return true;
-    }catch(error){
-        console.error(error);
-        return false;
-    }
+export async function getInterviewById(id: string): Promise<Interview | null> {
+  const interview = await db.collection("interviews").doc(id).get();
+  return interview.data() as Interview | null;
 }
 
 export async function getFeedbackByInterviewId(
@@ -92,10 +49,85 @@ export async function getFeedbackByInterviewId(
   return { id: feedbackDoc.id, ...feedbackDoc.data() } as Feedback;
 }
 
-export async function getInterviewById(id: string): Promise<Interview | null> {
-  const interview = await db.collection("interviews").doc(id).get();
+export async function generateQuestions(params: InterviewRequest) {
+  const {
+    context,        // "job" | "internship"
+    focus,          // "behavioral" | "technical" | "mixed"
+    role,           // "Marketing Manager", "Software Engineer", etc.
+    field,          // "Finance", "Healthcare", "Software Engineering", etc.
+    stage,          // "student" | "freshgrad" | "experienced"
+    amount,
+    userid,
+    additionalInfo, // optional free-text
+  } = params;
 
-  return interview.data() as Interview | null;
+  // ── Human-readable labels for the prompt ──────────────────────────────────
+
+  const contextLabel: Record<string, string> = {
+    job:        "a full-time job application",
+    internship: "an internship application",
+  };
+
+  const focusLabel: Record<string, string> = {
+    behavioral: "behavioral questions only (situational, past experience, STAR-method style)",
+    technical:  "technical questions only (domain knowledge, problem-solving, role-specific skills)",
+    mixed:      "a balanced mix of behavioral and technical questions",
+  };
+
+  const stageLabel: Record<string, string> = {
+    student:    "a current student with limited work experience",
+    freshgrad:  "a fresh graduate entering the workforce",
+    experienced: "an experienced professional",
+  };
+
+  try {
+    const { text: questions } = await generateText({
+      model: geminiModel,
+      prompt: `
+You are an expert interview coach preparing mock interview questions.
+
+INTERVIEW CONTEXT:
+- Purpose: ${contextLabel[context] ?? context}
+- Position being applied for: ${role}
+- Industry or field: ${field}
+- Applicant stage: ${stageLabel[stage] ?? stage}
+- Question focus: ${focusLabel[focus] ?? focus}
+- Number of questions to generate: ${amount}
+${additionalInfo ? `\nADDITIONAL CONTEXT FROM THE APPLICANT:\n${additionalInfo}` : ""}
+
+INSTRUCTIONS:
+1. Generate exactly ${amount} interview questions tailored to the context above.
+2. Questions must be realistic and match what a real interviewer at a ${field} organization would ask for a ${role} position.
+3. Adjust difficulty and framing to the applicant stage: ${stageLabel[stage] ?? stage}. For students or fresh graduates, do not ask for years of experience — focus on potential, learning agility, and academic or project experience instead.
+4. If additional context was provided, use it to make at least some questions specific to that background or situation.
+5. Questions will be read aloud by a voice assistant. Do not use any special characters such as * / # : ( ) — or markdown formatting of any kind.
+6. Do not number the questions. Do not add explanations or notes.
+7. Return ONLY a JSON array of strings, with no additional text before or after. Format:
+["Question one", "Question two", "Question three"]
+      `.trim(),
+    });
+
+    const interview = {
+      // New general fields
+      context,
+      focus,
+      role,
+      field,
+      stage,
+      additionalInfo: additionalInfo ?? "",
+      questions: JSON.parse(questions),
+      userId: userid,
+      finalized: true,
+      createAt: new Date().toISOString(),
+    };
+
+    await db.collection("interviews").add(interview);
+
+    return true;
+  } catch (error) {
+    console.error("generateQuestions error:", error);
+    return false;
+  }
 }
 
 export async function createFeedback(params: CreateFeedbackParams) {
@@ -110,7 +142,7 @@ export async function createFeedback(params: CreateFeedbackParams) {
       .join("");
 
     const { object } = await generateObject({
-      model: google("gemini-2.0-flash-001"),
+      model: geminiModel,
       schema: feedbackSchema,
       prompt: `
         You are an AI interviewer analyzing a mock interview. Your task is to evaluate the candidate based on structured categories. Be thorough and detailed in your analysis. Don't be lenient with the candidate. If there are mistakes or areas for improvement, point them out.
@@ -129,18 +161,17 @@ export async function createFeedback(params: CreateFeedbackParams) {
     });
 
     const feedback = {
-      interviewId: interviewId,
-      userId: userId,
-      totalScore: object.totalScore,
-      categoryScores: object.categoryScores,
-      strengths: object.strengths,
+      interviewId,
+      userId,
+      totalScore:          object.totalScore,
+      categoryScores:      object.categoryScores,
+      strengths:           object.strengths,
       areasForImprovement: object.areasForImprovement,
-      finalAssessment: object.finalAssessment,
-      createdAt: new Date().toISOString(),
+      finalAssessment:     object.finalAssessment,
+      createdAt:           new Date().toISOString(),
     };
 
     let feedbackRef;
-
     if (feedbackId) {
       feedbackRef = db.collection("feedback").doc(feedbackId);
     } else {

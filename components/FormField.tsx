@@ -4,9 +4,9 @@ import {
   FormItem,
   FormLabel,
   FormControl,
-  FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -16,7 +16,7 @@ interface FormFieldProps<T extends FieldValues> {
   label: string;
   placeholder?: string;
   type?: string;
-  variant?: "input" | "radio" | "checkbox";
+  variant?: "input" | "radio" | "checkbox" | "textarea";
   options?: { value: string; label: string }[];
 }
 
@@ -33,7 +33,7 @@ const FormField = <T extends FieldValues>({
     <Controller
       control={control}
       name={name}
-      render={({ field }) => (
+      render={({ field, fieldState }) => (
         <FormItem>
           {variant === "checkbox" ? (
             <div className="flex items-center space-x-2">
@@ -45,6 +45,7 @@ const FormField = <T extends FieldValues>({
               </FormControl>
               <FormLabel className="label">{label}</FormLabel>
             </div>
+
           ) : variant === "radio" ? (
             <>
               <FormLabel className="label">{label}</FormLabel>
@@ -63,6 +64,19 @@ const FormField = <T extends FieldValues>({
                 </RadioGroup>
               </FormControl>
             </>
+
+          ) : variant === "textarea" ? (
+            <>
+              <FormLabel className="label">{label}</FormLabel>
+              <FormControl>
+                <Textarea
+                  className="input min-h-[120px] resize-none"
+                  placeholder={placeholder}
+                  {...field}
+                />
+              </FormControl>
+            </>
+
           ) : (
             <>
               <FormLabel className="label">{label}</FormLabel>
@@ -80,11 +94,14 @@ const FormField = <T extends FieldValues>({
               </FormControl>
             </>
           )}
-          <FormMessage />
+
+          {fieldState.error && (
+            <p className="text-sm font-medium text-destructive">{fieldState.error.message}</p>
+          )}
         </FormItem>
       )}
     />
   );
-}
+};
 
 export default FormField;

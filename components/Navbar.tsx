@@ -1,13 +1,20 @@
+import { getCurrentUser } from "@/lib/actions/auth.action"
 import { Mic } from "lucide-react"
 import Link from "next/link"
 
-const Navbar = () => {
+interface NavbarProps {
+  isLoggedIn?: boolean
+}
+
+const Navbar = async () => {
+    const user = await getCurrentUser();
+    const isLoggedIn = !!user;
   return (
-        <nav className="px-12 py-6 w-full shadow-2xl fixed top-0">
+        <nav className="px-12 py-6 w-full fixed top-0 z-50 backdrop-blur-md bg-white/70 shadow-sm border-b border-white/20">
             <div className="max-w-7xl mx-auto flex justify-between items-center">
             <Link href='/'>
             <div className="flex items-center gap-3">
-                
+
                 <div className="w-10 h-10 bg-linear-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                     <Mic className="text-white" size={24} />
                 </div>
@@ -20,11 +27,11 @@ const Navbar = () => {
             <a href="#" className="text-gray-600 hover:text-gray-900 font-medium">Features</a>
             <a href="#" className="text-gray-600 hover:text-gray-900 font-medium">Pricing</a>
             <a href="#" className="text-gray-600 hover:text-gray-900 font-medium">About</a>
-            <Link href='/sign-in'>
-            <button 
+            <Link href={isLoggedIn ? '/profile' : '/sign-in'}>
+            <button
                 className="px-6 py-2 bg-linear-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all"
             >
-                Sign-in
+                {isLoggedIn ? 'Profile' : 'Sign-in'}
             </button>
             </Link>
             </div>

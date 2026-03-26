@@ -1,7 +1,7 @@
 /**
  * Manual test for StarJudge
  * 
- * Run with: npx tsx __tests__/evaluation/star-judge.test.ts
+ * Run with: npx tsx __tests__/evaluation/starjudge.test.ts
  */
 
 import { config } from 'dotenv';

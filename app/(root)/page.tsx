@@ -1,15 +1,14 @@
-import Hero from "@/components/ui/page/root/Hero";
+import Hero from "@/components/page/root/Hero";
+import Dashboard from "@/components/page/root/Dashboard";
 import { getCurrentUser } from "@/lib/actions/auth.action";
-import Image from "next/image";
 
 const page = async()=> {
   const user = await getCurrentUser();
 
   return (
     <>
-      <div className="w-full max-w-6xl mx-auto h-[480px] flex text-white">
-        <Hero />
-      </div>
+      {!user && <Hero />}
+      {user && <Dashboard userId={user.id} />}
     </>
   );
 }

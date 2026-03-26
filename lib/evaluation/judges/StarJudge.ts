@@ -9,6 +9,7 @@ import { BaseJudge, JudgeEvaluation, EvaluationDimension } from "../BaseJudge";
 import { STAR_RUBRIC, REFERENCE_ANSWERS } from "../rubrics/StarRubric";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
+import { geminiModel } from "@/lib/ai.config";
 
 export default class StarJudge extends BaseJudge {
   judgeId = "star-gemini-judge";
@@ -23,7 +24,7 @@ export default class StarJudge extends BaseJudge {
   constructor(apiKey: string) {
     super();
     const google = createGoogleGenerativeAI({ apiKey });
-    this.model = google("gemini-2.5-flash");
+    this.model = geminiModel;
   }
 
   /**

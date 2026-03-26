@@ -130,7 +130,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
               type="password"
             />
 
-            <Button className="gradiant-bg" type="submit">
+            <Button className="gradient-bg" type="submit">
               {isSignIn ? "Sign In" : "Create an Account"}
             </Button>
           </form>

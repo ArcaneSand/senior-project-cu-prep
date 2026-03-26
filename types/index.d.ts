@@ -1,4 +1,4 @@
-type AuthFormType = "sign-in" | "sign-up" 
+type AuthFormType = "sign-in" | "sign-up";
 
 interface SignInParams {
   email: string;
@@ -14,39 +14,45 @@ interface SignUpParams {
 type FormType = "sign-in" | "sign-up";
 
 interface User {
+  name: string;
   email: string;
   id: string;
 }
 
 interface AgentProps {
   userName: string;
-  userId?: string;
-  interviewId?: string;
-  feedbackId?: string;
+  userId: string;
   type: "generate" | "interview";
+  feedbackId?: string;
+  interviewId?: string;
   questions?: string[];
 }
 
 interface Interview {
   id: string;
+  context: string;
+  focus: string;
   role: string;
-  level: string;
+  field: string;
+  stage: string;
   questions: string[];
-  techstack: string[];
+  additionalInfo?: string;
   createAt: string;
   userId: string;
-  type: string;
   finalized: boolean;
 }
 interface InterviewCardProps {
   interviewId?: string;
-  id: string
-  role: string
-  type: string
-  level: string
-  techstack: string[]
-  questions: string[]
-  createAt: string
+  id: string;
+  userId: string;
+  role: string;
+  context: string;
+  focus: string;
+  field: string;
+  stage: string;
+  questions: string[];
+  createAt: string;
+  finalized?: boolean;
 }
 interface Feedback {
   id: string;
@@ -74,12 +80,14 @@ interface GetLatestInterviewsParams {
 }
 
 interface InterviewRequest {
-  type: string;
-  role: string;
-  level: string;
-  techstack: string;
+  context: string; // "job" | "internship"
+  focus: string; // "behavioral" | "technical" | "mixed"
+  role: string; // position title
+  field: string; // industry / field (replaces techstack)
+  stage: string; // "student" | "freshgrad" | "experienced"
   amount: number;
   userid: string;
+  additionalInfo?: string; // optional free-text grounding
 }
 
 type Message =

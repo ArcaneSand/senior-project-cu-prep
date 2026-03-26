@@ -62,10 +62,10 @@ const Feedback = async ({ params }: RouteParams) => {
               {/* Overall Score */}
               <div className="flex items-center gap-6">
                 <div className="relative">
-                  <div className="w-24 h-24 rounded-full gradiant-bg opacity-20 blur-xl absolute" />
+                  <div className="w-24 h-24 rounded-full gradient-bg opacity-20 blur-xl absolute" />
                   <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
                     <div className="w-20 h-20 rounded-full bg-background flex items-center justify-center">
-                      <span className="text-3xl font-bold gradiant-bg bg-clip-text text-transparent">
+                      <span className="text-3xl font-bold gradient-bg bg-clip-text text-transparent">
                         {feedback?.totalScore}
                       </span>
                     </div>
@@ -194,7 +194,7 @@ const Feedback = async ({ params }: RouteParams) => {
 
           <Button asChild className="flex-1 relative group">
             <Link href={`/interview/${id}`} className="flex items-center justify-center gap-2">
-              <div className="absolute -inset-0.5 gradiant-bg rounded-lg blur opacity-30 group-hover:opacity-50 transition" />
+              <div className="absolute -inset-0.5 gradient-bg rounded-lg blur opacity-30 group-hover:opacity-50 transition" />
               <span className="relative flex items-center gap-2">
                 <RotateCcw className="w-4 h-4" />
                 Retake Interview

@@ -4,7 +4,7 @@
  * Tests the complete multi-judge evaluation pipeline with
  * StarJudge, CompetencyJudge, and Aggregator.
  * 
- * Run with: npx tsx __tests__/evaluation/multi-judge.test.ts
+ * Run with: npx tsx __tests__/evaluation/multijudge.test.ts
  */
 import { config } from 'dotenv';
 config({ path: '.env.local' });
