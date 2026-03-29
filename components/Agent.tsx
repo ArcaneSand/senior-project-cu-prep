@@ -87,8 +87,36 @@ const Agent = ({
   // ── Post-call: route or generate feedback ───────────────────────────────
 
   useEffect(() => {
+    const triggerMultiJudge = (transcript: SavedMessage[]) => {
+      if (!questions?.length || !interviewId) return;
+
+      const userAnswer = transcript
+        .filter(m => m.role === 'user')
+        .map(m => m.content)
+        .join('\n\n');
+
+      if (!userAnswer.trim()) return;
+
+      // Fire-and-forget: don't await, don't block navigation
+      questions.forEach((question, idx) => {
+        fetch('/api/evaluate-multi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            interviewId,
+            questionId: `question-${idx}`,
+            question,
+            answer: userAnswer,
+          }),
+        }).catch(err => console.error(`Multi-judge failed for question ${idx}:`, err));
+      });
+    };
+
     const handleGenerateFeedback = async (messages: SavedMessage[]) => {
       console.log('handleGenerateFeedback');
+
+      // Trigger multi-judge evaluations in the background
+      triggerMultiJudge(messages);
 
       const { success, feedbackId: id } = await createFeedback({
         interviewId: interviewId!,
@@ -112,13 +140,26 @@ const Agent = ({
         handleGenerateFeedback(messagesRef.current);
       }
     }
-  }, [callStatus, feedbackId, interviewId, router, type, userId]);
+  }, [callStatus, feedbackId, interviewId, questions, router, type, userId]);
 
   // ── Start call ──────────────────────────────────────────────────────────
 
   const handleCall = async () => {
     setCallStatus(CallStatus.CONNECTING);
     setError(null);
+
+    // Explicitly request mic permission before handing off to Vapi.
+    // If the browser has previously blocked the mic, Vapi fails silently —
+    // the user can hear the interviewer but their audio is never captured.
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Immediately release — Vapi will open its own stream.
+      stream.getTracks().forEach(t => t.stop());
+    } catch {
+      setError('Microphone access is required. Please allow microphone permission in your browser and try again.');
+      setCallStatus(CallStatus.INACTIVE);
+      return;
+    }
 
     try {
       if (type === 'generate') {

@@ -153,7 +153,7 @@ ${formattedQuestions}
 
     // Controls how VAPI handles being interrupted BY the user
     stopSpeakingPlan: {
-      numWords: 2, // User must say 2+ words to interrupt (prevents false triggers)
+      numWords: 0, // Allow any speech to register — was 2, which caused single-word responses to be dropped
       voiceSeconds: 0.3,
       backoffSeconds: 1.5, // After stopping, stay silent 1.5s to give user the floor
       acknowledgementPhrases: [
