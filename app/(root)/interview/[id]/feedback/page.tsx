@@ -1,14 +1,16 @@
 import dayjs from "dayjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Calendar, Star, TrendingUp, Sparkles, CheckCircle, AlertCircle, Home, RotateCcw } from "lucide-react";
+import { Calendar, Star, TrendingUp, Sparkles, CheckCircle, AlertCircle, Home, RotateCcw, Brain, Clock } from "lucide-react";
 
 import {
   getFeedbackByInterviewId,
   getInterviewById,
 } from "@/lib/actions/general.action";
+import { getEvaluationsByInterview } from "@/lib/actions/evaluation.action";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/actions/auth.action";
+import JudgeCard from "@/components/evaluation/JudgeCard";
 
 const Feedback = async ({ params }: RouteParams) => {
   const { id } = await params;
@@ -21,6 +23,8 @@ const Feedback = async ({ params }: RouteParams) => {
     interviewId: id,
     userId: user?.id!,
   });
+
+  const evaluations = await getEvaluationsByInterview(id);
 
   // Calculate color based on score
   const getScoreColor = (score: number) => {
@@ -181,6 +185,122 @@ const Feedback = async ({ params }: RouteParams) => {
               ))}
             </ul>
           </div>
+        </div>
+
+        {/* Multi-Judge Evaluation */}
+        <div>
+          <div className="flex items-center gap-2 mb-6">
+            <Brain className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            <h2 className="text-2xl font-bold">AI Judge Analysis</h2>
+          </div>
+
+          {evaluations.length === 0 ? (
+            <div className="rounded-xl border bg-card p-6 flex items-center gap-4 text-muted-foreground">
+              <Clock className="w-5 h-5 shrink-0 animate-pulse" />
+              <p className="text-sm">
+                Detailed AI judge evaluations are still processing. Refresh this page in a few moments to see per-question breakdowns.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {evaluations.map((ev, idx) => {
+                const pct = Math.round((ev.aggregatedScores.overall.mean / 4) * 100);
+                const scoreColor =
+                  pct >= 75 ? "text-green-600 dark:text-green-400" :
+                  pct >= 50 ? "text-yellow-600 dark:text-yellow-400" :
+                  "text-red-600 dark:text-red-400";
+                const scoreBg =
+                  pct >= 75 ? "bg-green-100 dark:bg-green-900/30" :
+                  pct >= 50 ? "bg-yellow-100 dark:bg-yellow-900/30" :
+                  "bg-red-100 dark:bg-red-900/30";
+
+                return (
+                  <div key={ev.id} className="rounded-xl border bg-card overflow-hidden">
+                    {/* Question header */}
+                    <div className="bg-secondary/40 px-6 py-4 flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                          Question {idx + 1}
+                        </p>
+                        <p className="font-medium">{ev.question}</p>
+                      </div>
+                      <div className={`shrink-0 px-3 py-1 rounded-full text-sm font-bold ${scoreBg} ${scoreColor}`}>
+                        {ev.aggregatedScores.overall.mean.toFixed(1)}/4
+                      </div>
+                    </div>
+
+                    <div className="p-6 space-y-5">
+                      {/* Individual judge evaluations — collapsed by default */}
+                      {ev.judgeEvaluations?.length > 0 && (
+                        <div className="space-y-3 pt-2 border-t border-gray-700/50">
+                          <p className="text-sm font-semibold text-muted-foreground">
+                            Individual Judge Evaluations
+                            <span className="ml-2 text-xs font-normal">— click to expand</span>
+                          </p>
+                          {ev.judgeEvaluations.map((judge, jIdx) => {
+                            // Strip Firestore Timestamp (class instance) — not serializable to Client Components
+                            const { timestamp: _ts, ...serializableJudge } = judge;
+                            return (
+                              <JudgeCard
+                                key={judge.judgeId}
+                                evaluation={serializableJudge}
+                                judgeNumber={jIdx + 1}
+                                totalJudges={ev.judgeEvaluations.length}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Synthesized feedback */}
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {ev.synthesizedFeedback.topStrengths.length > 0 && (
+                          <div>
+                            <p className="text-sm font-semibold text-green-700 dark:text-green-400 mb-2">Strengths</p>
+                            <ul className="space-y-1.5">
+                              {ev.synthesizedFeedback.topStrengths.map((s, i) => (
+                                <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 shrink-0" />
+                                  {s}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {ev.synthesizedFeedback.topImprovements.length > 0 && (
+                          <div>
+                            <p className="text-sm font-semibold text-orange-700 dark:text-orange-400 mb-2">Improvements</p>
+                            <ul className="space-y-1.5">
+                              {ev.synthesizedFeedback.topImprovements.map((s, i) => (
+                                <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 shrink-0" />
+                                  {s}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Disagreement flags */}
+                      {ev.synthesizedFeedback.disagreementFlags.length > 0 && (
+                        <p className="text-xs text-muted-foreground border rounded-lg px-3 py-2">
+                          Judges disagreed on: {ev.synthesizedFeedback.disagreementFlags.join(", ")}
+                        </p>
+                      )}
+
+                      {/* Confidence */}
+                      <p className="text-xs text-muted-foreground">
+                        Confidence: {Math.round(ev.confidenceScore * 100)}%
+                      </p>
+
+                      
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}

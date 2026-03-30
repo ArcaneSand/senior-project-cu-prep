@@ -2,8 +2,10 @@
 
 import { createFeedback } from '@/lib/actions/general.action';
 import { buildVapiAssistantConfig } from '@/lib/vapi-action/interview-formatter';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { cn } from '@/lib/utils';
 import { vapi } from '@/lib/vapi.sdk';
+import { Mic } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react'
 
@@ -37,10 +39,12 @@ const Agent = ({
 }: AgentProps) => {
   const router = useRouter();
 
-  const [isSpeaking,  setIsSpeaking]  = useState(false);
-  const [callStatus,  setCallStatus]  = useState<CallStatus>(CallStatus.INACTIVE);
-  const [messages,    setMessages]    = useState<SavedMessage[]>([]);
-  const [error,       setError]       = useState<string | null>(null);
+  const [isSpeaking,           setIsSpeaking]           = useState(false);
+  const [userVolume,           setUserVolume]           = useState(0);
+  const [callStatus,           setCallStatus]           = useState<CallStatus>(CallStatus.INACTIVE);
+  const [messages,             setMessages]             = useState<SavedMessage[]>([]);
+  const [error,                setError]                = useState<string | null>(null);
+  const [isProcessingFeedback, setIsProcessingFeedback] = useState(false);
 
   // ref so the call-end effect always sees the latest messages array
   const messagesRef = useRef<SavedMessage[]>([]);
@@ -58,8 +62,9 @@ const Agent = ({
       }
     };
 
-    const onSpeechStart = () => setIsSpeaking(true);
-    const onSpeechEnd   = () => setIsSpeaking(false);
+    const onSpeechStart  = () => setIsSpeaking(true);
+    const onSpeechEnd    = () => setIsSpeaking(false);
+    const onVolumeLevel  = (vol: number) => setUserVolume(vol);
 
     const onError = (error: Error) => {
       console.error('VAPI error:', error);
@@ -67,41 +72,76 @@ const Agent = ({
       setCallStatus(CallStatus.INACTIVE);
     };
 
-    vapi.on('call-start',   onCallStart);
-    vapi.on('call-end',     onCallEnd);
-    vapi.on('message',      onMessage);
-    vapi.on('speech-start', onSpeechStart);
-    vapi.on('speech-end',   onSpeechEnd);
-    vapi.on('error',        onError);
+    vapi.on('call-start',    onCallStart);
+    vapi.on('call-end',      onCallEnd);
+    vapi.on('message',       onMessage);
+    vapi.on('speech-start',  onSpeechStart);
+    vapi.on('speech-end',    onSpeechEnd);
+    vapi.on('volume-level',  onVolumeLevel);
+    vapi.on('error',         onError);
 
     return () => {
-      vapi.off('call-start',   onCallStart);
-      vapi.off('call-end',     onCallEnd);
-      vapi.off('message',      onMessage);
-      vapi.off('speech-start', onSpeechStart);
-      vapi.off('speech-end',   onSpeechEnd);
-      vapi.off('error',        onError);
+      vapi.off('call-start',    onCallStart);
+      vapi.off('call-end',      onCallEnd);
+      vapi.off('message',       onMessage);
+      vapi.off('speech-start',  onSpeechStart);
+      vapi.off('speech-end',    onSpeechEnd);
+      vapi.off('volume-level',  onVolumeLevel);
+      vapi.off('error',         onError);
     };
   }, []);
 
   // ── Post-call: route or generate feedback ───────────────────────────────
 
   useEffect(() => {
+    const triggerMultiJudge = (transcript: SavedMessage[]) => {
+      if (!questions?.length || !interviewId) return;
+
+      const userAnswer = transcript
+        .filter(m => m.role === 'user')
+        .map(m => m.content)
+        .join('\n\n');
+
+      if (!userAnswer.trim()) return;
+
+      // Fire-and-forget: don't await, don't block navigation
+      questions.forEach((question, idx) => {
+        fetch('/api/evaluate-multi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            interviewId,
+            questionId: `question-${idx}`,
+            question,
+            answer: userAnswer,
+          }),
+        }).catch(err => console.error(`Multi-judge failed for question ${idx}:`, err));
+      });
+    };
+
     const handleGenerateFeedback = async (messages: SavedMessage[]) => {
       console.log('handleGenerateFeedback');
+      setIsProcessingFeedback(true);
 
-      const { success, feedbackId: id } = await createFeedback({
-        interviewId: interviewId!,
-        userId:      userId!,
-        transcript:  messages,
-        feedbackId,
-      });
+      // Trigger multi-judge evaluations in the background
+      triggerMultiJudge(messages);
 
-      if (success && id) {
-        router.push(`/interview/${interviewId}/feedback`);
-      } else {
-        console.log('Error saving feedback');
-        router.push('/');
+      try {
+        const { success, feedbackId: id } = await createFeedback({
+          interviewId: interviewId!,
+          userId:      userId!,
+          transcript:  messages,
+          feedbackId,
+        });
+
+        if (success && id) {
+          router.push(`/interview/${interviewId}/feedback`);
+        } else {
+          console.log('Error saving feedback');
+          router.push('/');
+        }
+      } finally {
+        setIsProcessingFeedback(false);
       }
     };
 
@@ -112,13 +152,26 @@ const Agent = ({
         handleGenerateFeedback(messagesRef.current);
       }
     }
-  }, [callStatus, feedbackId, interviewId, router, type, userId]);
+  }, [callStatus, feedbackId, interviewId, questions, router, type, userId]);
 
   // ── Start call ──────────────────────────────────────────────────────────
 
   const handleCall = async () => {
     setCallStatus(CallStatus.CONNECTING);
     setError(null);
+
+    // Explicitly request mic permission before handing off to Vapi.
+    // If the browser has previously blocked the mic, Vapi fails silently —
+    // the user can hear the interviewer but their audio is never captured.
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Immediately release — Vapi will open its own stream.
+      stream.getTracks().forEach(t => t.stop());
+    } catch {
+      setError('Microphone access is required. Please allow microphone permission in your browser and try again.');
+      setCallStatus(CallStatus.INACTIVE);
+      return;
+    }
 
     try {
       if (type === 'generate') {
@@ -169,7 +222,16 @@ const Agent = ({
 
   // ── Render ──────────────────────────────────────────────────────────────
 
+  const isCallActive = callStatus === CallStatus.ACTIVE;
+
   return (
+    <>
+      <LoadingOverlay
+        isOpen={isProcessingFeedback}
+        title="Analyzing Your Interview"
+        description="Our AI judges are evaluating your performance..."
+      />
+
     <div className="space-y-6">
 
       {/* Error banner */}
@@ -241,6 +303,28 @@ const Agent = ({
                     {callStatus === CallStatus.ACTIVE ? 'In interview' : 'Candidate'}
                   </p>
                 </div>
+
+                {/* User volume indicator — visible during active call */}
+                {isCallActive && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Mic
+                      className={`w-4 h-4 transition-all ${userVolume > 0.1 ? 'text-green-500' : 'text-gray-400'}`}
+                      style={{ transform: `scale(${0.8 + userVolume * 0.5})` }}
+                    />
+                    <div className="flex gap-0.5 items-end h-5">
+                      {[0.2, 0.4, 0.6, 0.8, 1.0].map((threshold, i) => (
+                        <div
+                          key={i}
+                          className={`w-1 rounded-full transition-all duration-75 ${userVolume > threshold ? 'bg-green-500' : 'bg-gray-600'}`}
+                          style={{ height: userVolume > threshold ? `${60 + i * 10}%` : '20%' }}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      {userVolume > 0.1 ? 'Speaking' : 'Listening'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -313,6 +397,7 @@ const Agent = ({
       </div>
 
     </div>
+    </>
   );
 };
 

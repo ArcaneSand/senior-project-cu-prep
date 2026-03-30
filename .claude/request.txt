@@ -1,0 +1,494 @@
+# PASTE THIS INTO CLAUDE CODE - FRONTEND ADJUSTMENTS V2
+
+Hi Claude! Two specific fixes for CU-Prep.
+
+Context files:
+@.claude/PROJECT_STATE.md
+
+========================================
+AUTONOMY LEVEL: MAXIMUM
+========================================
+
+You have FULL PERMISSION to:
+✅ Modify Agent.tsx completely
+✅ Modify feedback page and MultiJudgeResults component
+✅ Update component structure and layout
+✅ Add new state variables (useState for collapse/expand)
+✅ Change Vapi event listeners
+✅ Restructure feedback display with collapsible sections
+✅ Add onClick handlers for toggle functionality
+✅ Update JudgeCard component to be collapsible by default
+✅ Fix TypeScript errors
+✅ Add chevron icons or expand/collapse indicators
+
+DO NOT ASK ME BEFORE:
+- Moving voice indicator from fixed to inside user card
+- Changing Vapi events to volume-level
+- Looping through ALL questions on feedback page
+- Making judge scores collapsed by default
+- Adding toggle state for each judge card
+- Adding clear labels for which judge's score
+- Restructuring MultiJudgeResults layout
+- Installing lucide-react icons if needed
+
+ONLY STOP when:
+- Vapi SDK doesn't have volume events (check docs first)
+- Cannot find user profile card in Agent.tsx
+- Evaluation data structure is completely different
+- Same error 3+ times despite fixes
+
+OTHERWISE: PROCEED AUTONOMOUSLY.
+
+========================================
+
+## ISSUE 1: Voice Indicator - User Volume Inside Card
+
+**Current Problem:**
+- Shows when VAPI AGENT talks (wrong)
+- Fixed/sticky at right side (weird placement)
+
+**Required Changes:**
+- Show USER's microphone volume level
+- Position INSIDE user card profile (right side of agent profile)
+
+**File:** `components/Agent.tsx`
+
+**Step 1: Find user profile card**
+Search for:
+- Dual avatar/profile layout
+- User avatar or "You" label
+- Right side profile card
+
+**Step 2: Change Vapi event to volume detection**
+```tsx
+// REMOVE old events:
+// vapi.on('speech-start')
+// vapi.on('speech-end')
+
+// ADD volume detection:
+const [userVolume, setUserVolume] = useState(0);
+
+useEffect(() => {
+  if (!vapi) return;
+  
+  const handleVolume = (volume: number) => {
+    // volume is typically 0.0 to 1.0
+    setUserVolume(volume);
+  };
+  
+  vapi.on('volume-level', handleVolume);
+  
+  return () => {
+    vapi.off('volume-level', handleVolume);
+  };
+}, [vapi]);
+```
+
+**Step 3: Move indicator inside user card**
+```tsx
+{/* Find the user profile card component */}
+<div className="user-profile-card relative p-4 bg-gray-800 rounded-lg">
+  <Avatar />
+  <span className="user-name">You</span>
+  
+  {/* ADD VOLUME INDICATOR HERE - Inside card, not fixed */}
+  {isCallActive && (
+    <div className="flex items-center gap-2 mt-2">
+      {/* Microphone icon */}
+      <Mic 
+        className={`w-4 h-4 transition-all ${
+          userVolume > 0.1 ? 'text-green-500' : 'text-gray-400'
+        }`}
+        style={{
+          transform: `scale(${0.8 + userVolume * 0.5})`
+        }}
+      />
+      
+      {/* Volume bars visualization */}
+      <div className="flex gap-0.5 items-end h-5">
+        {[0.2, 0.4, 0.6, 0.8, 1.0].map((threshold, i) => (
+          <div
+            key={i}
+            className={`w-1 rounded-full transition-all ${
+              userVolume > threshold 
+                ? 'bg-green-500' 
+                : 'bg-gray-600'
+            }`}
+            style={{
+              height: userVolume > threshold 
+                ? `${60 + i * 10}%` 
+                : '20%'
+            }}
+          />
+        ))}
+      </div>
+      
+      {/* Volume level text */}
+      <span className="text-xs text-gray-400">
+        {userVolume > 0.1 ? 'Speaking' : 'Listening'}
+      </span>
+    </div>
+  )}
+</div>
+```
+
+**Quality Gates Issue 1:**
+- [ ] Indicator only inside user card (not fixed position)
+- [ ] Shows USER volume (not agent speaking)
+- [ ] Volume bars scale with speaking level
+- [ ] Green when speaking, gray when silent
+- [ ] No console errors
+
+---
+
+## ISSUE 2: Multi-Judge Feedback - All Questions + Collapsible Judges
+
+**Current Problems:**
+1. Only shows first question (missing other questions)
+2. All judge scores visible by default (should be collapsed)
+3. Not clear which score comes from which judge
+
+**Required Changes:**
+1. Show ALL questions with their evaluations
+2. Judge scores HIDDEN by default (collapsed)
+3. Click to expand each judge's scores
+4. Clear labels showing which judge gave which score
+
+**Files:** 
+- `app/interview/[id]/feedback/page.tsx`
+- `components/evaluation/MultiJudgeResults.tsx`
+- `components/evaluation/JudgeCard.tsx`
+
+---
+
+### Part A: Show All Questions (Feedback Page)
+
+**File:** `app/interview/[id]/feedback/page.tsx`
+
+**Current Issue:** Only first evaluation showing
+
+**Fix:**
+```tsx
+// Make sure fetching ALL evaluations
+const [evaluations, setEvaluations] = useState<StoredEvaluation[]>([]);
+
+useEffect(() => {
+  async function loadData() {
+    // Fetch ALL evaluations for this interview
+    const allEvaluations = await getEvaluationsByInterview(interviewId);
+    setEvaluations(allEvaluations);
+  }
+  loadData();
+}, [interviewId]);
+
+// In render - LOOP through ALL evaluations
+return (
+  <div className="space-y-8">
+    {/* Existing feedback (5-category scores) stays at top */}
+    <ExistingFeedbackComponent />
+    
+    {/* Multi-judge section for ALL questions */}
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">AI Judge Analysis</h2>
+      <p className="text-gray-400">
+        Each question was evaluated by {evaluations[0]?.judgeEvaluations.length || 2} independent AI judges
+      </p>
+      
+      {/* LOOP THROUGH ALL QUESTIONS */}
+      {evaluations.map((evaluation, idx) => (
+        <div key={evaluation.questionId} className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-blue-400">
+              Question {idx + 1} of {evaluations.length}
+            </h3>
+            <p className="text-gray-300 mt-2">{evaluation.question}</p>
+          </div>
+          
+          {/* Multi-judge results for THIS question */}
+          <MultiJudgeResults
+            evaluation={evaluation}
+            showQuestion={false} {/* Already shown above */}
+            showAnswer={true}
+          />
+        </div>
+      ))}
+      
+      {/* Empty state */}
+      {evaluations.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          <p>AI evaluations are still processing...</p>
+          <p className="text-sm mt-2">This usually takes 3-5 seconds per question</p>
+        </div>
+      )}
+    </div>
+  </div>
+);
+```
+
+---
+
+### Part B: Collapsible Judge Scores (JudgeCard Component)
+
+**File:** `components/evaluation/JudgeCard.tsx`
+
+**Current Issue:** 
+- Judge details expanded by default
+- All scores visible immediately
+- Not clear which judge gave which score
+
+**Required Changes:**
+1. Default state: COLLAPSED (only show judge name + overall score)
+2. Click to expand: Show full details (dimensions, reasoning, evidence)
+3. Clear judge label with distinct visual style
+
+**Implementation:**
+
+```tsx
+'use client';
+
+import React, { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react'; // Add these imports
+import ScoreIndicator from './ScoreIndicator';
+
+interface JudgeCardProps {
+  evaluation: JudgeEvaluation;
+  defaultExpanded?: boolean;
+}
+
+export default function JudgeCard({ 
+  evaluation, 
+  defaultExpanded = false // CHANGE: Default to collapsed
+}: JudgeCardProps) {
+  // Toggle state - starts COLLAPSED
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  
+  return (
+    <div className="border-2 border-gray-700 rounded-xl bg-gray-900/80 overflow-hidden">
+      {/* HEADER - Always visible, clickable to toggle */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full px-6 py-4 flex justify-between items-center hover:bg-gray-800/50 transition-colors group"
+      >
+        <div className="flex items-center gap-4">
+          {/* Judge Label Badge */}
+          <div className="px-3 py-1 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold">
+            {evaluation.judgeName}
+          </div>
+          
+          {/* Judge ID (subtle) */}
+          <span className="text-xs text-gray-500">
+            {evaluation.judgeId}
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {/* Overall Score - Large and prominent */}
+          <div className="text-right">
+            <div className="text-3xl font-bold text-white">
+              {evaluation.overallScore.toFixed(2)}
+              <span className="text-base text-gray-400 font-normal ml-1">/4.0</span>
+            </div>
+            <div className="text-xs text-gray-400">
+              {(evaluation.confidence * 100).toFixed(0)}% confidence
+            </div>
+          </div>
+          
+          {/* Expand/Collapse Icon */}
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+          )}
+        </div>
+      </button>
+      
+      {/* EXPANDABLE CONTENT - Hidden by default */}
+      {isExpanded && (
+        <div className="px-6 pb-6 space-y-6 border-t border-gray-700 pt-6 bg-gray-800/30">
+          {/* Label to clarify this is detailed breakdown */}
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <span className="font-semibold text-white">{evaluation.judgeName}</span>
+            <span>·</span>
+            <span>Detailed Breakdown</span>
+          </div>
+          
+          {/* Dimension Scores */}
+          <div className="space-y-4">
+            <h4 className="font-semibold text-white text-sm uppercase tracking-wide">
+              Dimension Scores
+            </h4>
+            {evaluation.dimensions.map((dim, idx) => (
+              <div key={idx} className="space-y-2">
+                <ScoreIndicator
+                  score={dim.score}
+                  maxScore={dim.maxScore}
+                  label={dim.name}
+                  size="md"
+                />
+                <div className="pl-4 space-y-2">
+                  <p className="text-sm text-gray-300">
+                    <span className="font-medium text-white">Reasoning:</span> {dim.reasoning}
+                  </p>
+                  {dim.evidence.length > 0 && (
+                    <div className="text-sm">
+                      <span className="font-medium text-white">Evidence:</span>
+                      <ul className="mt-1 space-y-1">
+                        {dim.evidence.map((quote, qIdx) => (
+                          <li key={qIdx} className="text-gray-400 italic pl-4 border-l-2 border-gray-600">
+                            "{quote}"
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Strengths */}
+          <div className="space-y-2">
+            <h4 className="font-semibold text-white flex items-center gap-2 text-sm uppercase tracking-wide">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              Strengths
+            </h4>
+            <ul className="space-y-2">
+              {evaluation.strengths.map((strength, idx) => (
+                <li key={idx} className="text-sm text-gray-300 pl-7 relative">
+                  <span className="absolute left-0 text-green-500">✓</span>
+                  {strength}
+                </li>
+              ))}
+            </ul>
+          </div>
+          
+          {/* Improvements */}
+          <div className="space-y-2">
+            <h4 className="font-semibold text-white flex items-center gap-2 text-sm uppercase tracking-wide">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+              Areas for Improvement
+            </h4>
+            <ul className="space-y-2">
+              {evaluation.improvements.map((improvement, idx) => (
+                <li key={idx} className="text-sm text-gray-300 pl-7 relative">
+                  <span className="absolute left-0 text-blue-500">→</span>
+                  {improvement}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+### Part C: Update MultiJudgeResults Layout
+
+**File:** `components/evaluation/MultiJudgeResults.tsx`
+
+**Changes Needed:**
+1. Ensure all judge cards use updated JudgeCard (collapsed by default)
+2. Clear section headers
+3. Better visual separation between judges
+
+**Key Section to Update:**
+
+```tsx
+{/* Individual Judge Evaluations - All collapsed by default */}
+<div className="space-y-4">
+  <div className="border-t border-gray-700 pt-6">
+    <h3 className="text-xl font-bold text-white mb-2">
+      Individual Judge Evaluations
+    </h3>
+    <p className="text-sm text-gray-400 mb-6">
+      Click each judge card to see detailed scoring breakdown
+    </p>
+  </div>
+  
+  <div className="space-y-4">
+    {judgeEvaluations.map((judge, idx) => (
+      <div key={judge.judgeId}>
+        {/* Judge number indicator */}
+        <div className="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wide">
+          Judge {idx + 1} of {judgeEvaluations.length}
+        </div>
+        
+        {/* Judge card - collapsed by default */}
+        <JudgeCard
+          evaluation={judge}
+          defaultExpanded={false} // IMPORTANT: All collapsed
+        />
+      </div>
+    ))}
+  </div>
+</div>
+```
+
+---
+
+## Quality Gates Issue 2:
+
+**Before marking complete, verify:**
+
+### All Questions Display:
+- [ ] Navigate to /interview/[id]/feedback
+- [ ] See heading "Question 1 of N", "Question 2 of N", etc.
+- [ ] Each question shows its text
+- [ ] Each question has MultiJudgeResults below it
+- [ ] No duplicate questions
+
+### Collapsible Judge Cards:
+- [ ] All judge cards start COLLAPSED (only show name + score)
+- [ ] Judge name is clearly labeled with badge
+- [ ] Overall score is prominent (large, bold)
+- [ ] Clicking card expands to show full details
+- [ ] Clicking again collapses back
+- [ ] Chevron icon shows expand/collapse state
+- [ ] Can distinguish "Judge 1 of 2", "Judge 2 of 2"
+
+### Visual Clarity:
+- [ ] Clear which score comes from which judge (badge/label)
+- [ ] Judge names: "STAR Method Evaluator", "Competency Evaluator"
+- [ ] Dimension scores hidden until expanded
+- [ ] Smooth expand/collapse animation
+
+### Mobile:
+- [ ] Cards stack vertically
+- [ ] Touch to expand works
+- [ ] Text is readable
+- [ ] No horizontal scroll
+
+========================================
+
+WORKFLOW:
+
+1. Issue 1: Voice Indicator (30 min)
+   - Find user card in Agent.tsx
+   - Switch to volume-level events
+   - Move indicator inside card (remove fixed positioning)
+   - Add volume bars visualization
+   - Test: Speak into mic, verify volume bars respond
+
+2. Issue 2A: Show All Questions (20 min)
+   - Update feedback page to loop through all evaluations
+   - Add question headers with numbering
+   - Test: Verify all questions appear
+
+3. Issue 2B: Collapsible Judges (30 min)
+   - Update JudgeCard: defaultExpanded = false
+   - Add toggle state with useState
+   - Add ChevronDown/ChevronUp icons
+   - Add clear judge labels (badges)
+   - Test: Click to expand/collapse
+
+Expected Duration: ~1.5 hours total
+
+========================================
+BEGIN with Issue 1: Voice Indicator
+Find user profile card in Agent.tsx.
+Proceed autonomously.
+========================================

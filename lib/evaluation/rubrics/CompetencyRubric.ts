@@ -15,23 +15,23 @@ export const COMPETENCY_RUBRIC = {
       description: "Analytical thinking, root cause analysis, and solution design",
       levels: [
         {
-          score: 4,
+          score: 5,
           criteria: "Systematic analytical approach with clear root cause identification, multiple solutions considered, data-driven decision making, and evidence of iterative problem-solving"
         },
         {
-          score: 3,
+          score: 4,
           criteria: "Clear problem identification with logical solution approach, some analysis of root causes, reasonable solution with justification"
         },
         {
-          score: 2,
+          score: 3,
           criteria: "Problem identified but solution approach not well-reasoned, limited analysis, or jumps to solution without clear thinking process"
         },
         {
-          score: 1,
+          score: 2,
           criteria: "Minimal problem-solving demonstrated, unclear thinking process, or solution appears arbitrary"
         },
         {
-          score: 0,
+          score: 1,
           criteria: "No problem-solving approach evident, or problem not clearly identified"
         }
       ],
@@ -61,23 +61,23 @@ export const COMPETENCY_RUBRIC = {
       description: "Clarity, structure, and articulation of ideas",
       levels: [
         {
-          score: 4,
+          score: 5,
           criteria: "Exceptionally clear and well-structured response with logical flow, easy to follow, uses concrete examples, and demonstrates strong articulation of complex ideas"
         },
         {
-          score: 3,
+          score: 4,
           criteria: "Clear communication with good structure, mostly easy to follow, some good examples, minor organizational issues"
         },
         {
-          score: 2,
+          score: 3,
           criteria: "Understandable but lacks clear structure, jumps between ideas, or missing important context that would aid comprehension"
         },
         {
-          score: 1,
+          score: 2,
           criteria: "Unclear or disorganized, difficult to follow the narrative, or missing critical information"
         },
         {
-          score: 0,
+          score: 1,
           criteria: "Incomprehensible, extremely disorganized, or fails to communicate the story"
         }
       ],
@@ -107,7 +107,7 @@ export const COMPETENCY_RUBRIC = {
       description: "Proactivity, ownership, and self-direction",
       levels: [
         {
-          score: 4,
+          score: 5,
           criteria: "Strong proactive ownership, identified problem without prompting, took full responsibility, drove solution independently, went beyond assigned duties"
         },
         {

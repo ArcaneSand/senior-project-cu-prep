@@ -25,15 +25,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased `}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-bgc text-foreground`}
       >
-          <Navbar/>
-          <div className="h-screen pt-[100px]">
-            {children}
-          </div>
-        <Toaster/>
+        <Navbar />
+        <div className="min-h-screen pt-[72px]">{children}</div>
+        <Toaster
+          theme="dark"
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: 'rgb(23, 23, 23)',
+              border: '1px solid rgb(38, 38, 38)',
+              color: 'rgb(250, 250, 250)',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
+            },
+            duration: 4000,
+          }}
+          richColors
+        />
       </body>
     </html>
   );
