@@ -10,6 +10,7 @@ import {
 import { getEvaluationsByInterview } from "@/lib/actions/evaluation.action";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/actions/auth.action";
+import JudgeCard from "@/components/evaluation/JudgeCard";
 
 const Feedback = async ({ params }: RouteParams) => {
   const { id } = await params;
@@ -229,29 +230,27 @@ const Feedback = async ({ params }: RouteParams) => {
                     </div>
 
                     <div className="p-6 space-y-5">
-                      {/* Dimension scores */}
-                      <div>
-                        <p className="text-sm font-semibold mb-3">Dimension Scores</p>
-                        <div className="grid sm:grid-cols-2 gap-3">
-                          {Object.entries(ev.aggregatedScores.byDimension).map(([name, stats]) => {
-                            const dimPct = Math.round((stats.mean / 4) * 100);
+                      {/* Individual judge evaluations — collapsed by default */}
+                      {ev.judgeEvaluations?.length > 0 && (
+                        <div className="space-y-3 pt-2 border-t border-gray-700/50">
+                          <p className="text-sm font-semibold text-muted-foreground">
+                            Individual Judge Evaluations
+                            <span className="ml-2 text-xs font-normal">— click to expand</span>
+                          </p>
+                          {ev.judgeEvaluations.map((judge, jIdx) => {
+                            // Strip Firestore Timestamp (class instance) — not serializable to Client Components
+                            const { timestamp: _ts, ...serializableJudge } = judge;
                             return (
-                              <div key={name} className="space-y-1">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">{name}</span>
-                                  <span className="font-medium">{stats.mean.toFixed(1)}/4</span>
-                                </div>
-                                <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
-                                    style={{ width: `${dimPct}%` }}
-                                  />
-                                </div>
-                              </div>
+                              <JudgeCard
+                                key={judge.judgeId}
+                                evaluation={serializableJudge}
+                                judgeNumber={jIdx + 1}
+                                totalJudges={ev.judgeEvaluations.length}
+                              />
                             );
                           })}
                         </div>
-                      </div>
+                      )}
 
                       {/* Synthesized feedback */}
                       <div className="grid md:grid-cols-2 gap-4">
@@ -294,6 +293,8 @@ const Feedback = async ({ params }: RouteParams) => {
                       <p className="text-xs text-muted-foreground">
                         Confidence: {Math.round(ev.confidenceScore * 100)}%
                       </p>
+
+                      
                     </div>
                   </div>
                 );

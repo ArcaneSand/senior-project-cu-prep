@@ -1,5 +1,6 @@
 import React from 'react'
 import Link from 'next/link'
+import dayjs from 'dayjs'
 import { Button } from './ui/button'
 import { Calendar, Clock, Briefcase, TrendingUp, GraduationCap } from 'lucide-react'
 
@@ -37,12 +38,7 @@ const InterviewCard = ({
   createAt,
   hasFeedback,
 }: InterviewCardProps) => {
-  const formattedDate = new Date(createAt).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  const formattedDate = dayjs(createAt).format('MMM D, YYYY')
 
   return (
     <div className="group relative overflow-hidden rounded-xl border bg-card hover:shadow-lg transition-all duration-300">
