@@ -6,7 +6,7 @@ const layout = async ({children}:{children: React.ReactNode}) => {
 
     return (
     <div>
-        <div className="pt-[85px]">
+        <div className="pt-[2px]">
             {children}
         </div>
     </div>

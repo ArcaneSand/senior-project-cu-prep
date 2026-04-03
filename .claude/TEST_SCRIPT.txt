@@ -1,0 +1,659 @@
+# TEST SCRIPT - Evaluation System Testing
+
+This script tests the evaluation system independently without running a full interview.
+
+========================================
+AUTONOMY LEVEL: MAXIMUM
+========================================
+
+You have FULL PERMISSION to:
+✅ Create test files
+✅ Run test commands
+✅ Install test dependencies if needed
+✅ Fix test failures
+
+DO NOT ASK ME BEFORE:
+- Creating test directory
+- Creating test data files
+- Running npm test commands
+- Fixing test errors
+
+ONLY STOP when:
+- Tests pass successfully
+- Critical dependency missing
+
+OTHERWISE: PROCEED AUTONOMOUSLY.
+
+========================================
+
+## SETUP
+
+Create test directory structure:
+
+```
+tests/
+  └── evaluation/
+      ├── test-data.ts          # Sample interview data
+      ├── api.test.ts           # API endpoint tests
+      ├── aggregator.test.ts    # Aggregator unit tests
+      └── integration.test.ts   # End-to-end tests
+```
+
+---
+
+## TEST 1: Sample Data Setup
+
+**File:** `tests/evaluation/test-data.ts`
+
+```typescript
+/**
+ * Sample data for testing evaluation system
+ */
+
+export const sampleInterview = {
+  interviewId: "test_int_123",
+  userId: "test_user_456",
+  questions: [
+    "Tell me about a time you solved a complex technical problem.",
+    "Describe a situation where you had to learn a new technology quickly.",
+    "How do you handle disagreements with team members?"
+  ],
+  fullTranscript: `assistant: Hello! Let's begin. Tell me about a time you solved a complex technical problem.
+user: Sure, I was working on a project where we had severe performance issues. Our API response times were averaging 2 seconds, which was unacceptable for our users. I analyzed the bottleneck using profiling tools and discovered that our database queries were not optimized. I implemented a caching layer using Redis and rewrote several queries. The result was a 92% reduction in response time, bringing it down to under 200 milliseconds.
+assistant: Great! Next question: Describe a situation where you had to learn a new technology quickly.
+user: When I joined my current team, they were using Kubernetes which I had never used before. I spent my evenings going through the official documentation and set up a local minikube cluster on my laptop. I also watched several tutorials and practiced deploying sample applications. Within two weeks, I was comfortable enough to deploy our production services to our Kubernetes cluster.
+assistant: Excellent. Final question: How do you handle disagreements with team members?
+user: I believe in open communication and data-driven decisions. For example, recently we had a disagreement about whether to use microservices or a monolithic architecture for a new project. I scheduled a meeting where I presented benchmark data showing the trade-offs of each approach. I listened carefully to my teammates' concerns about operational complexity. We eventually reached a consensus to start with a modular monolith that could be split into microservices later if needed.
+assistant: Thank you for your responses. Your interview is complete!`,
+  interviewContext: {
+    role: "Software Engineer",
+    field: "Technology",
+    stage: "experienced" as const
+  }
+};
+
+export const expectedOutput = {
+  questionCount: 3,
+  hasOverallScore: true,
+  hasStrengths: true,
+  hasImprovements: true,
+  hasCentralRubricScores: true,
+  centralRubricDimensions: [
+    "coherenceStructure",
+    "fluency",
+    "lexical",
+    "technical",
+    "softSkill",
+    "cultural"
+  ]
+};
+```
+
+---
+
+## TEST 2: API Endpoint Test
+
+**File:** `tests/evaluation/api.test.ts`
+
+```typescript
+/**
+ * Test /api/evaluate-interview endpoint
+ */
+
+import { sampleInterview, expectedOutput } from './test-data';
+
+async function testEvaluateInterviewAPI() {
+  console.log('\n=== TEST: /api/evaluate-interview endpoint ===\n');
+  
+  const startTime = Date.now();
+  
+  try {
+    // Make API call
+    const response = await fetch('http://localhost:3000/api/evaluate-interview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sampleInterview)
+    });
+    
+    const duration = Date.now() - startTime;
+    
+    // Check response status
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('❌ API call failed:', error);
+      return false;
+    }
+    
+    const result = await response.json();
+    
+    // Validate response structure
+    console.log('✓ API call succeeded');
+    console.log(`✓ Duration: ${duration}ms`);
+    
+    if (!result.success) {
+      console.error('❌ Response success is false');
+      return false;
+    }
+    console.log('✓ Response success: true');
+    
+    if (!result.evaluationId) {
+      console.error('❌ Missing evaluationId');
+      return false;
+    }
+    console.log(`✓ Evaluation ID: ${result.evaluationId}`);
+    
+    if (!result.preview || typeof result.preview.overallScore !== 'number') {
+      console.error('❌ Missing or invalid preview.overallScore');
+      return false;
+    }
+    console.log(`✓ Overall Score: ${result.preview.overallScore}/5.0`);
+    
+    if (result.preview.questionCount !== expectedOutput.questionCount) {
+      console.error(`❌ Expected ${expectedOutput.questionCount} questions, got ${result.preview.questionCount}`);
+      return false;
+    }
+    console.log(`✓ Question count: ${result.preview.questionCount}`);
+    
+    // Check Firestore document structure
+    console.log('\n--- Fetching Firestore document ---\n');
+    
+    const evalResponse = await fetch(`http://localhost:3000/api/evaluation/${result.evaluationId}`);
+    if (evalResponse.ok) {
+      const evaluation = await evalResponse.json();
+      
+      // Validate structure
+      if (!evaluation.centralRubricScores) {
+        console.error('❌ Missing centralRubricScores');
+        return false;
+      }
+      console.log('✓ Has centralRubricScores');
+      
+      // Check all dimensions present
+      for (const dim of expectedOutput.centralRubricDimensions) {
+        if (!(dim in evaluation.centralRubricScores)) {
+          console.error(`❌ Missing dimension: ${dim}`);
+          return false;
+        }
+        const score = evaluation.centralRubricScores[dim];
+        if (score < 1 || score > 5) {
+          console.error(`❌ Invalid score for ${dim}: ${score} (should be 1-5)`);
+          return false;
+        }
+      }
+      console.log('✓ All 6 central rubric dimensions present (1-5 scale)');
+      
+      if (!Array.isArray(evaluation.strengths) || evaluation.strengths.length !== 3) {
+        console.error(`❌ Expected 3 strengths, got ${evaluation.strengths?.length || 0}`);
+        return false;
+      }
+      console.log(`✓ Has 3 strengths`);
+      
+      if (!Array.isArray(evaluation.improvements) || evaluation.improvements.length !== 3) {
+        console.error(`❌ Expected 3 improvements, got ${evaluation.improvements?.length || 0}`);
+        return false;
+      }
+      console.log(`✓ Has 3 improvements`);
+      
+      if (!Array.isArray(evaluation.questions) || evaluation.questions.length !== 3) {
+        console.error(`❌ Expected 3 questions, got ${evaluation.questions?.length || 0}`);
+        return false;
+      }
+      console.log(`✓ Has 3 questions with evaluations`);
+      
+      // Check each question has judge evaluations
+      for (let i = 0; i < evaluation.questions.length; i++) {
+        const q = evaluation.questions[i];
+        if (!Array.isArray(q.judgeEvaluations) || q.judgeEvaluations.length !== 2) {
+          console.error(`❌ Question ${i + 1} should have 2 judge evaluations, got ${q.judgeEvaluations?.length || 0}`);
+          return false;
+        }
+      }
+      console.log('✓ Each question has 2 judge evaluations');
+    }
+    
+    console.log('\n✅ ALL TESTS PASSED\n');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Test failed with error:', error);
+    return false;
+  }
+}
+
+// Run test
+testEvaluateInterviewAPI().then(success => {
+  process.exit(success ? 0 : 1);
+});
+```
+
+---
+
+## TEST 3: Aggregator Unit Test
+
+**File:** `tests/evaluation/aggregator.test.ts`
+
+```typescript
+/**
+ * Unit tests for Aggregator class
+ */
+
+import { Aggregator } from '@/lib/evaluation/Aggregator';
+import { sampleInterview } from './test-data';
+
+async function testAggregator() {
+  console.log('\n=== TEST: Aggregator Unit Tests ===\n');
+  
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (!apiKey) {
+    console.error('❌ GOOGLE_GENERATIVE_AI_API_KEY not set');
+    return false;
+  }
+  
+  const aggregator = new Aggregator();
+  
+  try {
+    // Test: aggregateInterview should not throw
+    console.log('Testing aggregateInterview method...');
+    
+    const result = await aggregator.aggregateInterview(
+      {
+        fullTranscript: sampleInterview.fullTranscript,
+        questions: sampleInterview.questions,
+        interviewContext: sampleInterview.interviewContext,
+        judgeEvaluationsPerQuestion: [
+          [], // Q1 - will be populated by judges
+          [], // Q2
+          []  // Q3
+        ]
+      },
+      apiKey
+    );
+    
+    console.log('✓ aggregateInterview completed without error');
+    
+    // Validate return type
+    if (!result.questionEvaluations) {
+      console.error('❌ Missing questionEvaluations');
+      return false;
+    }
+    console.log(`✓ Has questionEvaluations (${result.questionEvaluations.length})`);
+    
+    if (!result.centralRubricScores) {
+      console.error('❌ Missing centralRubricScores');
+      return false;
+    }
+    console.log('✓ Has centralRubricScores');
+    
+    if (typeof result.overallScore !== 'number') {
+      console.error('❌ Missing or invalid overallScore');
+      return false;
+    }
+    console.log(`✓ Overall score: ${result.overallScore}/5.0`);
+    
+    if (result.overallScore < 1 || result.overallScore > 5) {
+      console.error(`❌ Overall score out of range: ${result.overallScore} (should be 1-5)`);
+      return false;
+    }
+    console.log('✓ Overall score is within valid range (1-5)');
+    
+    if (!Array.isArray(result.strengths) || result.strengths.length !== 3) {
+      console.error(`❌ Expected 3 strengths, got ${result.strengths?.length || 0}`);
+      return false;
+    }
+    console.log('✓ Has exactly 3 strengths');
+    
+    if (!Array.isArray(result.improvements) || result.improvements.length !== 3) {
+      console.error(`❌ Expected 3 improvements, got ${result.improvements?.length || 0}`);
+      return false;
+    }
+    console.log('✓ Has exactly 3 improvements');
+    
+    console.log('\n✅ ALL AGGREGATOR TESTS PASSED\n');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Aggregator test failed:', error);
+    return false;
+  }
+}
+
+// Run test
+testAggregator().then(success => {
+  process.exit(success ? 0 : 1);
+});
+```
+
+---
+
+## TEST 4: Integration Test
+
+**File:** `tests/evaluation/integration.test.ts`
+
+```typescript
+/**
+ * End-to-end integration test
+ */
+
+import StarJudge from '@/lib/evaluation/judges/StarJudge';
+import CompetencyJudge from '@/lib/evaluation/judges/CompetencyJudge';
+import { Aggregator } from '@/lib/evaluation/Aggregator';
+import { sampleInterview } from './test-data';
+
+async function integrationTest() {
+  console.log('\n=== INTEGRATION TEST: Full Evaluation Flow ===\n');
+  
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (!apiKey) {
+    console.error('❌ GOOGLE_GENERATIVE_AI_API_KEY not set');
+    return false;
+  }
+  
+  try {
+    const startTime = Date.now();
+    
+    // Step 1: Prepare questions
+    const questionInputs = sampleInterview.questions.map((q, idx) => ({
+      questionId: `question-${idx}`,
+      question: q,
+      answer: "",
+      context: sampleInterview.interviewContext
+    }));
+    
+    console.log(`Testing with ${questionInputs.length} questions...\n`);
+    
+    // Step 2: StarJudge evaluation
+    console.log('Step 1/3: StarJudge evaluation...');
+    const starJudge = new StarJudge(apiKey);
+    const starStart = Date.now();
+    const starEvaluations = await starJudge.evaluateMultiple(questionInputs);
+    console.log(`✓ StarJudge complete (${Date.now() - starStart}ms)`);
+    console.log(`  - Evaluated ${starEvaluations.length} questions`);
+    
+    // Step 3: CompetencyJudge evaluation
+    console.log('\nStep 2/3: CompetencyJudge evaluation...');
+    const competencyJudge = new CompetencyJudge(apiKey);
+    const compStart = Date.now();
+    const competencyEvaluations = await competencyJudge.evaluateMultiple(questionInputs);
+    console.log(`✓ CompetencyJudge complete (${Date.now() - compStart}ms)`);
+    console.log(`  - Evaluated ${competencyEvaluations.length} questions`);
+    
+    // Step 4: Combine evaluations
+    const judgeEvaluationsPerQuestion = sampleInterview.questions.map((_, idx) => [
+      starEvaluations[idx],
+      competencyEvaluations[idx]
+    ]);
+    
+    // Step 5: Aggregator
+    console.log('\nStep 3/3: Aggregator processing...');
+    const aggregator = new Aggregator();
+    const aggStart = Date.now();
+    const result = await aggregator.aggregateInterview(
+      {
+        fullTranscript: sampleInterview.fullTranscript,
+        questions: sampleInterview.questions,
+        interviewContext: sampleInterview.interviewContext,
+        judgeEvaluationsPerQuestion
+      },
+      apiKey
+    );
+    console.log(`✓ Aggregator complete (${Date.now() - aggStart}ms)`);
+    
+    const totalTime = Date.now() - startTime;
+    
+    // Validate results
+    console.log('\n--- Validation ---\n');
+    
+    console.log(`Overall Score: ${result.overallScore}/5.0`);
+    console.log(`Confidence: ${(result.confidenceScore * 100).toFixed(0)}%`);
+    console.log(`\nCentral Rubric Scores:`);
+    console.log(`  - Coherence: ${result.centralRubricScores.coherenceStructure}/5`);
+    console.log(`  - Fluency: ${result.centralRubricScores.fluency}/5`);
+    console.log(`  - Lexical: ${result.centralRubricScores.lexical}/5`);
+    console.log(`  - Technical: ${result.centralRubricScores.technical}/5`);
+    console.log(`  - Soft Skill: ${result.centralRubricScores.softSkill}/5`);
+    console.log(`  - Cultural: ${result.centralRubricScores.cultural}/5`);
+    
+    console.log(`\nStrengths (${result.strengths.length}):`);
+    result.strengths.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
+    
+    console.log(`\nImprovements (${result.improvements.length}):`);
+    result.improvements.forEach((imp, i) => console.log(`  ${i + 1}. ${imp}`));
+    
+    console.log(`\n--- Performance ---\n`);
+    console.log(`Total processing time: ${totalTime}ms`);
+    console.log(`Average per question: ${Math.round(totalTime / questionInputs.length)}ms`);
+    
+    // Performance check
+    if (totalTime > 60000) {
+      console.warn(`⚠️  Processing took longer than expected: ${totalTime}ms`);
+    } else {
+      console.log(`✓ Processing time acceptable`);
+    }
+    
+    console.log('\n✅ INTEGRATION TEST PASSED\n');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Integration test failed:', error);
+    return false;
+  }
+}
+
+// Run test
+integrationTest().then(success => {
+  process.exit(success ? 0 : 1);
+});
+```
+
+---
+
+## RUNNING TESTS
+
+### Prerequisites:
+
+```bash
+# Make sure dev server is running
+npm run dev
+
+# Make sure API key is set
+export GOOGLE_GENERATIVE_AI_API_KEY="your-key-here"
+```
+
+### Run individual tests:
+
+```bash
+# Test 1: API Endpoint
+npx tsx tests/evaluation/api.test.ts
+
+# Test 2: Aggregator Unit Test
+npx tsx tests/evaluation/aggregator.test.ts
+
+# Test 3: Integration Test
+npx tsx tests/evaluation/integration.test.ts
+```
+
+### Run all tests:
+
+```bash
+# Create test runner script
+cat > tests/run-all.sh << 'EOF'
+#!/bin/bash
+
+echo "Running Evaluation System Tests..."
+echo "=================================="
+
+npx tsx tests/evaluation/aggregator.test.ts && \
+npx tsx tests/evaluation/api.test.ts && \
+npx tsx tests/evaluation/integration.test.ts
+
+if [ $? -eq 0 ]; then
+  echo ""
+  echo "=================================="
+  echo "✅ ALL TESTS PASSED"
+  echo "=================================="
+  exit 0
+else
+  echo ""
+  echo "=================================="
+  echo "❌ SOME TESTS FAILED"
+  echo "=================================="
+  exit 1
+fi
+EOF
+
+chmod +x tests/run-all.sh
+
+# Run all
+./tests/run-all.sh
+```
+
+---
+
+## EXPECTED OUTPUT
+
+### Successful Test Run:
+
+```
+=== TEST: Aggregator Unit Tests ===
+
+Testing aggregateInterview method...
+✓ aggregateInterview completed without error
+✓ Has questionEvaluations (3)
+✓ Has centralRubricScores
+✓ Overall score: 4.12/5.0
+✓ Overall score is within valid range (1-5)
+✓ Has exactly 3 strengths
+✓ Has exactly 3 improvements
+
+✅ ALL AGGREGATOR TESTS PASSED
+
+=== TEST: /api/evaluate-interview endpoint ===
+
+✓ API call succeeded
+✓ Duration: 18234ms
+✓ Response success: true
+✓ Evaluation ID: eval_xyz789
+✓ Overall Score: 4.12/5.0
+✓ Question count: 3
+
+--- Fetching Firestore document ---
+
+✓ Has centralRubricScores
+✓ All 6 central rubric dimensions present (1-5 scale)
+✓ Has 3 strengths
+✓ Has 3 improvements
+✓ Has 3 questions with evaluations
+✓ Each question has 2 judge evaluations
+
+✅ ALL TESTS PASSED
+
+=== INTEGRATION TEST: Full Evaluation Flow ===
+
+Testing with 3 questions...
+
+Step 1/3: StarJudge evaluation...
+✓ StarJudge complete (5821ms)
+  - Evaluated 3 questions
+
+Step 2/3: CompetencyJudge evaluation...
+✓ CompetencyJudge complete (5632ms)
+  - Evaluated 3 questions
+
+Step 3/3: Aggregator processing...
+✓ Aggregator complete (12445ms)
+
+--- Validation ---
+
+Overall Score: 4.12/5.0
+Confidence: 87%
+
+Central Rubric Scores:
+  - Coherence: 4.3/5
+  - Fluency: 3.9/5
+  - Lexical: 4.1/5
+  - Technical: 4.5/5
+  - Soft Skill: 4.2/5
+  - Cultural: 3.9/5
+
+Strengths (3):
+  1. Excellent technical depth with quantified results (Technical: 4.5/5)
+  2. Strong STAR structure in behavioral responses (Coherence: 4.3/5)
+  3. Clear communication with specific examples (Soft Skill: 4.2/5)
+
+Improvements (3):
+  1. Could add more cultural fit examples (Cultural: 3.9/5)
+  2. Some responses could benefit from team collaboration details
+  3. Consider adding timeline context to technical explanations
+
+--- Performance ---
+
+Total processing time: 23898ms
+Average per question: 7966ms
+✓ Processing time acceptable
+
+✅ INTEGRATION TEST PASSED
+
+==================================
+✅ ALL TESTS PASSED
+==================================
+```
+
+---
+
+## TROUBLESHOOTING
+
+### Test fails with "API key not configured":
+```bash
+# Set environment variable
+export GOOGLE_GENERATIVE_AI_API_KEY="your-actual-key"
+
+# Or add to .env.local
+echo "GOOGLE_GENERATIVE_AI_API_KEY=your-key" >> .env.local
+```
+
+### Test fails with "Cannot find module":
+```bash
+# Install tsx if not present
+npm install -D tsx
+
+# Or use ts-node
+npm install -D ts-node
+npx ts-node tests/evaluation/api.test.ts
+```
+
+### Test times out:
+```bash
+# Increase timeout (in test file):
+// Add at top of test
+jest.setTimeout(60000); // 60 seconds
+
+# Or use --timeout flag
+npx tsx --timeout=60000 tests/evaluation/api.test.ts
+```
+
+### Firestore permission error:
+```bash
+# Check Firebase Admin credentials
+echo $FIREBASE_PRIVATE_KEY
+echo $FIREBASE_CLIENT_EMAIL
+
+# Make sure they're set in .env.local
+```
+
+---
+
+## SUCCESS CRITERIA
+
+Tests pass when:
+- [ ] Aggregator unit test completes without errors
+- [ ] API endpoint returns valid response
+- [ ] Central rubric has all 6 dimensions (1-5 scale)
+- [ ] Response has exactly 3 strengths
+- [ ] Response has exactly 3 improvements
+- [ ] All questions have 2 judge evaluations
+- [ ] Processing time < 30 seconds for 3 questions
+- [ ] Firestore document structure matches StoredEvaluation type
+
+---
+
+**Run these tests BEFORE deploying to production!**

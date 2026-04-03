@@ -7,7 +7,6 @@
 
 import { BaseJudge, JudgeEvaluation, EvaluationDimension } from '../BaseJudge';
 import { COMPETENCY_RUBRIC, COMPETENCY_STANDARDS } from '../rubrics/CompetencyRubric';
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { geminiModel } from "@/lib/ai.config";
 
@@ -15,29 +14,23 @@ export default class CompetencyJudge extends BaseJudge {
   judgeId = 'competency-gemini-judge';
   judgeName = 'Competency Evaluator';
 
-  private model: ReturnType<ReturnType<typeof createGoogleGenerativeAI>>;
+  private model = geminiModel;
 
-  /**
-   * Initialize the Competency judge with Gemini API
-   * @param apiKey - Google Gemini API key
-   */
-  constructor(apiKey: string) {
+  constructor(_apiKey: string) {
     super();
-    const google = createGoogleGenerativeAI({ apiKey });
-    this.model = geminiModel;
   }
   
   /**
    * Evaluate an interview answer based on competencies
    */
-  async evaluate({ 
-    question, 
-    answer, 
-    context 
+  async evaluate({
+    question,
+    answer,
+    context
   }: {
     question: string;
     answer: string;
-    context?: Record<string, any>;
+    context?: Record<string, unknown>;
   }): Promise<JudgeEvaluation> {
     try {
       // Build evaluation prompt
@@ -58,7 +51,7 @@ export default class CompetencyJudge extends BaseJudge {
       // Calculate overall score
       const overallScore = this.calculateOverallScore(parsed.dimensions);
       
-      console.log(`CompetencyJudge: Evaluation complete. Score: ${overallScore}/4.0`);
+      console.log(`CompetencyJudge: Evaluation complete. Score: ${overallScore}/5.0`);
       
       // Return structured evaluation
       return {
@@ -69,7 +62,6 @@ export default class CompetencyJudge extends BaseJudge {
         strengths: parsed.strengths,
         improvements: parsed.improvements,
         confidence: 0.85,
-        timestamp: new Date()
       };
       
     } catch (error) {
@@ -87,7 +79,7 @@ export default class CompetencyJudge extends BaseJudge {
 EVALUATION RUBRIC:
 ${JSON.stringify(COMPETENCY_RUBRIC, null, 2)}
 
-REFERENCE EXCELLENT COMPETENCY DEMONSTRATION (score 4.0):
+REFERENCE EXCELLENT COMPETENCY DEMONSTRATION (score 5.0):
 ${COMPETENCY_STANDARDS.excellent}
 
 REFERENCE POOR COMPETENCY DEMONSTRATION (score ~1.0):
@@ -101,7 +93,7 @@ ${answer}
 
 TASK: Evaluate this answer using the Competency rubric above. Focus on SKILLS DEMONSTRATED, not structural format. You MUST:
 
-1. Score each of the 4 competency dimensions (Problem-Solving, Communication, Initiative, Impact) on the 0-4 scale
+1. Score each of the 4 competency dimensions (Problem-Solving, Communication, Initiative, Impact) on the 1-5 scale
 2. For EACH dimension:
    - Assess what competency level was demonstrated in the answer
    - Provide specific reasoning citing the rubric criteria
@@ -123,7 +115,7 @@ CRITICAL RULES:
 - Evidence array MUST contain actual quotes showing the competency
 - Someone can have poor STAR structure but excellent competencies (or vice versa)
 - Do NOT penalize for using "we" if strong problem-solving is evident
-- Do NOT give all 4s or all 0s - evaluate each competency independently
+- Do NOT give all 5s or all 1s - evaluate each competency independently
 - Communication score is about CLARITY of the story, not STAR format compliance
 
 Return ONLY valid JSON in this EXACT format:
@@ -131,29 +123,29 @@ Return ONLY valid JSON in this EXACT format:
   "dimensions": [
     {
       "name": "Problem-Solving",
-      "score": 4,
-      "maxScore": 4,
+      "score": 5,
+      "maxScore": 5,
       "reasoning": "Demonstrated systematic analytical approach with clear root cause identification using profiling tools (New Relic APM). Evidence of data-driven decision making and consideration of multiple solution components.",
       "evidence": ["I profiled the application using New Relic APM", "identified that N+1 database queries were the primary bottleneck"]
     },
     {
       "name": "Communication",
-      "score": 3,
-      "maxScore": 4,
+      "score": 4,
+      "maxScore": 5,
       "reasoning": "...",
       "evidence": ["..."]
     },
     {
       "name": "Initiative",
-      "score": 4,
-      "maxScore": 4,
+      "score": 5,
+      "maxScore": 5,
       "reasoning": "...",
       "evidence": ["..."]
     },
     {
       "name": "Impact",
-      "score": 4,
-      "maxScore": 4,
+      "score": 5,
+      "maxScore": 5,
       "reasoning": "...",
       "evidence": ["..."]
     }
@@ -174,7 +166,11 @@ IMPORTANT: Return ONLY the JSON object, no other text, no markdown code blocks, 
   /**
    * Parse Gemini response and extract structured evaluation
    */
-  private parseResponse(response: string): any {
+  private parseResponse(response: string): {
+    dimensions: EvaluationDimension[];
+    strengths: string[];
+    improvements: string[];
+  } {
     try {
       // Remove markdown code blocks if present
       let jsonStr = response.trim();
@@ -219,7 +215,7 @@ IMPORTANT: Return ONLY the JSON object, no other text, no markdown code blocks, 
       }
       
       // Validate each dimension has required fields
-      parsed.dimensions.forEach((dim: any, idx: number) => {
+      (parsed.dimensions as EvaluationDimension[]).forEach((dim, idx) => {
         if (!dim.name || typeof dim.score !== 'number' || !dim.reasoning || !dim.evidence) {
           throw new Error(`Dimension ${idx} missing required fields`);
         }

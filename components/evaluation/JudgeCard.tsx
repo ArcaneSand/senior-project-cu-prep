@@ -41,8 +41,8 @@ export default function JudgeCard({
         <div className="flex items-center gap-4">
           <div className="text-right">
             <div className="text-2xl font-bold text-white">
-              {evaluation.overallScore.toFixed(2)}
-              <span className="text-sm text-gray-400 font-normal ml-1">/4.0</span>
+              {evaluation.overallScore.toFixed(1)}
+              <span className="text-sm text-gray-400 font-normal ml-1">/5.0</span>
             </div>
             <div className="text-xs text-gray-400">
               {(evaluation.confidence * 100).toFixed(0)}% confidence

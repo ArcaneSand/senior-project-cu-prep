@@ -39,7 +39,6 @@ const InterviewCard = ({
   hasFeedback,
 }: InterviewCardProps) => {
   const formattedDate = dayjs(createAt).format('MMM D, YYYY')
-
   return (
     <div className="group relative overflow-hidden rounded-xl border bg-card hover:shadow-lg transition-all duration-300">
       <div className="absolute inset-0 gradient-bg opacity-0 group-hover:opacity-5 transition-opacity duration-300" />

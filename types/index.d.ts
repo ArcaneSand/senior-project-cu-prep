@@ -7,6 +7,7 @@ interface SignInParams {
 
 interface SignUpParams {
   uid: string;
+  name: string;
   email: string;
   password: string;
 }
@@ -40,6 +41,8 @@ interface Interview {
   createAt: string;
   userId: string;
   finalized: boolean;
+  transcript?: string;    // Full transcript saved after interview ends
+  finishedAt?: string;    // ISO date string when interview completed
 }
 interface InterviewCardProps {
   interviewId?: string;
@@ -53,6 +56,7 @@ interface InterviewCardProps {
   questions: string[];
   createAt: string;
   finalized?: boolean;
+  hasFeedback?: boolean;
 }
 interface Feedback {
   id: string;

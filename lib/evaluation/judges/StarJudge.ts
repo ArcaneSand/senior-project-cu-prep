@@ -7,7 +7,6 @@
 
 import { BaseJudge, JudgeEvaluation, EvaluationDimension } from "../BaseJudge";
 import { STAR_RUBRIC, REFERENCE_ANSWERS } from "../rubrics/StarRubric";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { geminiModel } from "@/lib/ai.config";
 
@@ -15,16 +14,10 @@ export default class StarJudge extends BaseJudge {
   judgeId = "star-gemini-judge";
   judgeName = "STAR Method Evaluator";
 
-  private model: ReturnType<ReturnType<typeof createGoogleGenerativeAI>>;
+  private model = geminiModel;
 
-  /**
-   * Initialize the STAR judge with Gemini API
-   * @param apiKey - Google Gemini API key
-   */
-  constructor(apiKey: string) {
+  constructor(_apiKey: string) {
     super();
-    const google = createGoogleGenerativeAI({ apiKey });
-    this.model = geminiModel;
   }
 
   /**
@@ -37,7 +30,7 @@ export default class StarJudge extends BaseJudge {
   }: {
     question: string;
     answer: string;
-    context?: Record<string, any>;
+    context?: Record<string, unknown>;
   }): Promise<JudgeEvaluation> {
     try {
       // Build evaluation prompt
@@ -58,7 +51,7 @@ export default class StarJudge extends BaseJudge {
       // Calculate overall score
       const overallScore = this.calculateOverallScore(parsed.dimensions);
 
-      console.log(`StarJudge: Evaluation complete. Score: ${overallScore}/4.0`);
+      console.log(`StarJudge: Evaluation complete. Score: ${overallScore}/5.0`);
 
       // Return structured evaluation
       return {
@@ -69,7 +62,6 @@ export default class StarJudge extends BaseJudge {
         strengths: parsed.strengths,
         improvements: parsed.improvements,
         confidence: 0.85,
-        timestamp: new Date(),
       };
     } catch (error) {
       console.error("StarJudge evaluation failed:", error);
@@ -88,7 +80,7 @@ export default class StarJudge extends BaseJudge {
 EVALUATION RUBRIC:
 ${JSON.stringify(STAR_RUBRIC, null, 2)}
 
-REFERENCE EXCELLENT ANSWER (score 4.0):
+REFERENCE EXCELLENT ANSWER (score 5.0):
 ${REFERENCE_ANSWERS.excellent}
 
 REFERENCE POOR ANSWER (score ~1.0):
@@ -102,7 +94,7 @@ ${answer}
 
 TASK: Evaluate this answer using the STAR rubric above. You MUST:
 
-1. Score each of the 4 STAR dimensions (Situation, Task, Action, Result) on the 0-4 scale
+1. Score each of the 4 STAR dimensions (Situation, Task, Action, Result) on the 1-5 scale
 2. For EACH dimension:
    - Match the answer against the rubric level criteria
    - Provide specific reasoning citing the exact rubric level
@@ -123,7 +115,7 @@ CRITICAL RULES:
 - Reasoning MUST reference specific rubric level criteria (e.g., "Matches level 3 criteria: 'Good context with most elements'")
 - Improvements MUST show before/after examples
 - Do NOT be lenient - score accurately according to rubric
-- Do NOT give all 4s or all 0s - evaluate each dimension independently
+- Do NOT give all 5s or all 1s - evaluate each dimension independently
 
 Return ONLY valid JSON in this EXACT format:
 {
@@ -131,28 +123,28 @@ Return ONLY valid JSON in this EXACT format:
     {
       "name": "Situation",
       "score": 3,
-      "maxScore": 4,
+      "maxScore": 5,
       "reasoning": "Candidate provided good context about working at TechCorp with API performance issues, matching level 3 criteria ('Good context with most elements'). However, missing specific timeline details would prevent a level 4 score.",
       "evidence": ["I was working as a backend engineer at TechCorp", "our API was experiencing severe performance issues"]
     },
     {
       "name": "Task",
-      "score": 4,
-      "maxScore": 4,
+      "score": 5,
+      "maxScore": 5,
       "reasoning": "...",
       "evidence": ["..."]
     },
     {
       "name": "Action",
       "score": 2,
-      "maxScore": 4,
+      "maxScore": 5,
       "reasoning": "...",
       "evidence": ["..."]
     },
     {
       "name": "Result",
-      "score": 4,
-      "maxScore": 4,
+      "score": 5,
+      "maxScore": 5,
       "reasoning": "...",
       "evidence": ["..."]
     }
@@ -173,7 +165,11 @@ IMPORTANT: Return ONLY the JSON object, no other text, no markdown code blocks, 
   /**
    * Parse Gemini response and extract structured evaluation
    */
-  private parseResponse(response: string): any {
+  private parseResponse(response: string): {
+    dimensions: EvaluationDimension[];
+    strengths: string[];
+    improvements: string[];
+  } {
     try {
       // Remove markdown code blocks if present
       let jsonStr = response.trim();
@@ -220,7 +216,7 @@ IMPORTANT: Return ONLY the JSON object, no other text, no markdown code blocks, 
       }
 
       // Validate each dimension has required fields
-      parsed.dimensions.forEach((dim: any, idx: number) => {
+      (parsed.dimensions as EvaluationDimension[]).forEach((dim, idx) => {
         if (
           !dim.name ||
           typeof dim.score !== "number" ||
