@@ -132,8 +132,6 @@ ${formattedQuestions}
     startSpeakingPlan: {
       smartEndpointingPlan: {
         provider: "livekit",
-        // More patient after question-type phrases; quicker after clear endings
-        waitFunction: "700 + 4000 * max(0, x - 0.5)",
       },
       waitSeconds: 0.8,
       customEndpointingRules: [
@@ -159,23 +157,6 @@ ${formattedQuestions}
       numWords: 0, // Allow any speech to register — was 2, which caused single-word responses to be dropped
       voiceSeconds: 0.3,
       backoffSeconds: 1.5, // After stopping, stay silent 1.5s to give user the floor
-      acknowledgementPhrases: [
-        "okay",
-        "right",
-        "uh-huh",
-        "yeah",
-        "mm-hmm",
-        "sure",
-        "I see",
-      ],
-      interruptionPhrases: [
-        "wait",
-        "hold on",
-        "actually",
-        "let me add",
-        "one more thing",
-        "sorry",
-      ],
     },
 
     // Idle message if user goes completely silent mid-turn

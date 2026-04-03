@@ -5,6 +5,7 @@ import { buildVapiAssistantConfig } from '@/lib/vapi-action/interview-formatter'
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { cn } from '@/lib/utils';
 import { vapi } from '@/lib/vapi.sdk';
+import Image from 'next/image';
 import { Mic } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -84,7 +85,11 @@ const Agent = ({
     const onCallEnd    = () => setCallStatus(CallStatus.FINISHED);
 
     const onMessage = (message: Message) => {
-      if (message.type === 'transcript' && message.transcriptType === 'final') {
+      if (
+        message.type === 'transcript' &&
+        message.transcriptType === 'final' &&
+        typeof message.transcript === 'string'
+      ) {
         setMessages(prev => [...prev, { role: message.role, content: message.transcript }]);
       }
     };
