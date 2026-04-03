@@ -1,7 +1,9 @@
 "use server";
 
+import { cache } from "react";
 import { auth, db } from "@/firebase/admin";
 import { cookies } from "next/headers";
+import { serializeFirestoreDoc } from "@/lib/utils/serialize";
 
 // Session duration (1 week)
 const SESSION_DURATION = 60 * 60 * 24 * 7;
@@ -26,7 +28,7 @@ export async function setSessionCookie(idToken: string) {
 }
 
 export async function signUp(params: SignUpParams) {
-  const { uid, email } = params;
+  const { uid, name, email } = params;
 
   try {
     // check if user exists in db
@@ -40,6 +42,7 @@ export async function signUp(params: SignUpParams) {
     // save user to db
     await db.collection("users").doc(uid).set({
       email,
+      name,
     });
 
     return {
@@ -94,7 +97,7 @@ export async function signOut() {
 }
 
 // Get current user from session cookie
-export async function getCurrentUser(): Promise<User | null> {
+export const getCurrentUser = cache(async (): Promise<User | null> => {
   const cookieStore = await cookies();
 
   const sessionCookie = cookieStore.get("session")?.value;
@@ -110,17 +113,14 @@ export async function getCurrentUser(): Promise<User | null> {
       .get();
     if (!userRecord.exists) return null;
 
-    return {
-      ...userRecord.data(),
-      id: userRecord.id,
-    } as User;
+    return serializeFirestoreDoc<User>({ ...userRecord.data(), id: userRecord.id });
   } catch (error) {
     console.log(error);
 
     // Invalid or expired session
     return null;
   }
-}
+});
 
 // Check if user is authenticated
 export async function isAuthenticated() {

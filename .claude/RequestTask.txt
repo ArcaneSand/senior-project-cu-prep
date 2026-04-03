@@ -1,0 +1,190 @@
+================================================================
+CLAUDE CODE TASK — Fix rubric: drop Lexical, unify scale to 1-5
+================================================================
+AUTONOMY LEVEL: MAXIMUM
+Execute all steps. Do not ask for confirmation.
+================================================================
+
+TWO FIXES
+---------
+1. Remove "Lexical" as a standalone dimension from CentralRubric.
+   It has no independent criteria — it appears as a note inside
+   the Fluency cell in the source rubric ("appropriate words
+   (lexical resource) are used"). Fold it into the Fluency description.
+   Central rubric = 5 dimensions, not 6.
+
+2. Change STAR and Competency specialist dimensions to 1-5 scale.
+   There is no reason for them to use a different scale than the
+   central rubric. Consistency matters for academic validity.
+
+
+----------------------------------------------------------------
+TASK 1 — Fix CentralRubric.ts: remove Lexical, 5 dimensions only
+----------------------------------------------------------------
+
+File: lib/evaluation/rubrics/CentralRubric.ts
+
+Remove the entire "Lexical" dimension object from the dimensions array.
+
+Update the "Fluency" dimension description and criteria to absorb
+the lexical note. Change Fluency's description to:
+  "Speaking confidence, filler words, self-corrections, grammar,
+   and appropriate vocabulary (lexical resource)"
+
+Update Fluency level 5 criteria to include:
+  "Full confidence; rare fillers or silence; rare grammatical errors;
+   appropriate and varied vocabulary used; <=1 fatal mistake per 2 min"
+
+Update Fluency level 4 criteria to include:
+  "Decent confidence; occasional fillers/silence/errors;
+   mostly appropriate vocabulary; <=1 fatal mistake per 1 min"
+
+Update Fluency level 3 criteria to include:
+  "Moderate fluency; occasional errors and fillers;
+   adequate vocabulary; 2-3 fatal mistakes per 1 min"
+
+Update Fluency level 2 criteria to include:
+  "Basic fluency; limited vocabulary flexibility;
+   frequent fillers and errors; 4-5 fatal mistakes per 1 min"
+
+Update Fluency level 1 criteria to include:
+  "Cannot sustain basic communication; inappropriate vocabulary
+   commonly used; constant fillers; >6 fatal mistakes"
+
+Update CentralDimensionName type to remove "Lexical":
+
+  export type CentralDimensionName =
+    | "Coherence & Structure"
+    | "Fluency"
+    | "Technical"
+    | "Soft Skills"
+    | "Cultural Fit";
+
+The central rubric now has exactly 5 dimensions.
+
+
+----------------------------------------------------------------
+TASK 2 — Fix StarRubric.ts: change all scores to 1-5 scale
+----------------------------------------------------------------
+
+File: lib/evaluation/rubrics/StarRubric.ts
+
+For every dimension (Situation, Task, Action, Result):
+- Change score values from 0-4 range to 1-5 range
+- Level that was score:0 → becomes score:1 (lowest, cannot do)
+- Level that was score:1 → becomes score:2
+- Level that was score:2 → becomes score:3
+- Level that was score:3 → becomes score:4
+- Level that was score:4 → becomes score:5 (highest)
+
+The criteria text does not need to change — only the numeric
+score values shift up by 1.
+
+Also update any maxScore or scale references in StarRubric to
+reflect 1-5.
+
+
+----------------------------------------------------------------
+TASK 3 — Fix CompetencyRubric.ts: change all scores to 1-5 scale
+----------------------------------------------------------------
+
+File: lib/evaluation/rubrics/CompetencyRubric.ts
+
+Apply the same shift as Task 2:
+- score:0 → score:1
+- score:1 → score:2
+- score:2 → score:3
+- score:3 → score:4
+- score:4 → score:5
+
+Any maxScore or scale references updated to 1-5.
+
+
+----------------------------------------------------------------
+TASK 4 — Update StarJudge prompt and validation
+----------------------------------------------------------------
+
+File: lib/evaluation/judges/StarJudge.ts
+
+In buildEvaluationPrompt():
+- Update the RUBRIC B description to say "1-5 scale" instead of "0-4 scale"
+- Update the prompt instruction to say "Score each STAR dimension on the 1-5 scale"
+
+In parseResponse() validation:
+- Change specialist dimension score validation from 0-4 to 1-5:
+  scores must be integers between 1 and 5
+
+Update the maxScore in the JSON format example in the prompt
+from 4 to 5:
+  "maxScore": 5
+
+
+----------------------------------------------------------------
+TASK 5 — Update CompetencyJudge prompt and validation
+----------------------------------------------------------------
+
+File: lib/evaluation/judges/CompetencyJudge.ts
+
+Same changes as Task 4 but for the competency specialist dimensions:
+- Prompt updated to say "1-5 scale" for RUBRIC B
+- Validation updated to 1-5 range
+- maxScore in example updated to 5
+
+
+----------------------------------------------------------------
+TASK 6 — Update central dimension validation in both judges
+----------------------------------------------------------------
+
+Both StarJudge.ts and CompetencyJudge.ts
+
+In parseResponse(), the centralDimensions validation should check:
+- exactly 5 items (not 6 — Lexical is removed)
+- scores are integers 1-5
+
+Update the validation error message:
+  throw new Error(`Expected 5 central dimensions, got ${parsed.centralDimensions.length}`);
+
+
+----------------------------------------------------------------
+TASK 7 — Update calculateOverallScore in BaseJudge
+----------------------------------------------------------------
+
+File: lib/evaluation/BaseJudge.ts
+
+The overallScore is already the mean of centralDimensions.
+No scale change needed here since centralDimensions were always 1-5.
+Just confirm the method remains unchanged.
+
+
+----------------------------------------------------------------
+DO NOT DO
+----------------------------------------------------------------
+- Do not change the criteria text of STAR or Competency rubrics
+- Do not change any Aggregator logic
+- Do not change the UI components (JudgeCard etc.)
+- Do not use `any` types
+
+
+----------------------------------------------------------------
+VERIFICATION
+----------------------------------------------------------------
+1. npx tsc --noEmit — expect zero errors.
+
+2. Confirm Lexical is gone:
+   grep -r "Lexical" lib/evaluation/ --include="*.ts"
+   Should return ZERO results.
+
+3. Confirm all specialist dimension scores are 1-5:
+   grep -r '"score": 0' lib/evaluation/rubrics/ --include="*.ts"
+   Should return ZERO results.
+
+4. CentralRubric should have exactly 5 dimensions:
+   The dimensions array in CentralRubric.ts has 5 objects.
+
+5. Run: npx tsx __tests__/evaluation/multijudge.test.ts
+   centralDimensions should have 5 items per judge.
+   specialistDimensions should have 4 items per judge, all 1-5.
+
+================================================================
+END OF TASK
+================================================================

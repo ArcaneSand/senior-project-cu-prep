@@ -111,19 +111,19 @@ export const COMPETENCY_RUBRIC = {
           criteria: "Strong proactive ownership, identified problem without prompting, took full responsibility, drove solution independently, went beyond assigned duties"
         },
         {
-          score: 3,
+          score: 4,
           criteria: "Clear ownership when responsibility assigned, took initiative within scope, showed self-direction in execution"
         },
         {
-          score: 2,
+          score: 3,
           criteria: "Participated but limited personal ownership, followed direction, or unclear if action was self-directed vs assigned"
         },
         {
-          score: 1,
+          score: 2,
           criteria: "Minimal initiative shown, primarily reactive, or heavily dependent on others for direction"
         },
         {
-          score: 0,
+          score: 1,
           criteria: "No initiative demonstrated, or entirely passive role"
         }
       ],
@@ -151,23 +151,23 @@ export const COMPETENCY_RUBRIC = {
       description: "Business or technical impact achieved, value delivered",
       levels: [
         {
-          score: 4,
+          score: 5,
           criteria: "Significant quantified impact on business metrics, users, or technical systems with clear value demonstration and long-term benefits articulated"
         },
         {
-          score: 3,
+          score: 4,
           criteria: "Clear positive impact with some quantification, demonstrated value to stakeholders, or measurable improvement shown"
         },
         {
-          score: 2,
+          score: 3,
           criteria: "Positive impact mentioned but not quantified, or unclear magnitude of value delivered"
         },
         {
-          score: 1,
+          score: 2,
           criteria: "Minimal or unclear impact, or success criteria not met"
         },
         {
-          score: 0,
+          score: 1,
           criteria: "No measurable impact demonstrated, or outcome unclear/negative"
         }
       ],

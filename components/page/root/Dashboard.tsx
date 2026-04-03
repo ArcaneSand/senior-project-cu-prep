@@ -78,7 +78,12 @@ const InterviewGrid = async ({
     interviews.map((interview) =>
       getFeedbackByInterviewId({ interviewId: interview.id, userId })
     )
+    
   );
+  
+  console.log('[Dashboard] feedbackResults:', feedbackResults.map(
+    (f, i) => ({ interviewId: interviews[i].id, hasFeedback: f !== null })
+  ));
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

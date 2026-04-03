@@ -1,6 +1,6 @@
 'use client'
 
-import { createFeedback } from '@/lib/actions/general.action';
+import { getInterviewById, saveTranscript } from '@/lib/actions/general.action';
 import { buildVapiAssistantConfig } from '@/lib/vapi-action/interview-formatter';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { cn } from '@/lib/utils';
@@ -39,16 +39,42 @@ const Agent = ({
 }: AgentProps) => {
   const router = useRouter();
 
+  const FEEDBACK_STEPS = [
+    'Saving your interview transcript...',
+    'STAR Method Judge is evaluating your responses...',
+    'Competency Judge is evaluating your responses...',
+    'Panel is aggregating all verdicts...',
+    'Synthesizing personalized feedback...',
+    'Finalizing your results...',
+  ];
+
   const [isSpeaking,           setIsSpeaking]           = useState(false);
-  const [userVolume,           setUserVolume]           = useState(0);
+  const [aiVolume,             setAiVolume]             = useState(0);
   const [callStatus,           setCallStatus]           = useState<CallStatus>(CallStatus.INACTIVE);
   const [messages,             setMessages]             = useState<SavedMessage[]>([]);
   const [error,                setError]                = useState<string | null>(null);
   const [isProcessingFeedback, setIsProcessingFeedback] = useState(false);
+  const [feedbackStep,         setFeedbackStep]         = useState(0);
 
   // ref so the call-end effect always sees the latest messages array
   const messagesRef = useRef<SavedMessage[]>([]);
   messagesRef.current = messages;
+
+  useEffect(() => {
+    if (!isProcessingFeedback) {
+      setFeedbackStep(0);
+      return;
+    }
+    setFeedbackStep(0);
+    const interval = setInterval(() => {
+      setFeedbackStep(prev => {
+        if (prev < FEEDBACK_STEPS.length - 1) return prev + 1;
+        clearInterval(interval);
+        return prev;
+      });
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [isProcessingFeedback]);
 
   // ── VAPI event listeners ────────────────────────────────────────────────
 
@@ -64,7 +90,7 @@ const Agent = ({
 
     const onSpeechStart  = () => setIsSpeaking(true);
     const onSpeechEnd    = () => setIsSpeaking(false);
-    const onVolumeLevel  = (vol: number) => setUserVolume(vol);
+    const onVolumeLevel  = (vol: number) => setAiVolume(vol);
 
     const onError = (error: Error) => {
       console.error('VAPI error:', error);
@@ -94,52 +120,62 @@ const Agent = ({
   // ── Post-call: route or generate feedback ───────────────────────────────
 
   useEffect(() => {
-    const triggerMultiJudge = (transcript: SavedMessage[]) => {
-      if (!questions?.length || !interviewId) return;
 
-      const userAnswer = transcript
-        .filter(m => m.role === 'user')
-        .map(m => m.content)
-        .join('\n\n');
 
-      if (!userAnswer.trim()) return;
-
-      // Fire-and-forget: don't await, don't block navigation
-      questions.forEach((question, idx) => {
-        fetch('/api/evaluate-multi', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            interviewId,
-            questionId: `question-${idx}`,
-            question,
-            answer: userAnswer,
-          }),
-        }).catch(err => console.error(`Multi-judge failed for question ${idx}:`, err));
-      });
-    };
 
     const handleGenerateFeedback = async (messages: SavedMessage[]) => {
-      console.log('handleGenerateFeedback');
+      console.log('[Agent] handleGenerateFeedback');
       setIsProcessingFeedback(true);
 
-      // Trigger multi-judge evaluations in the background
-      triggerMultiJudge(messages);
-
       try {
-        const { success, feedbackId: id } = await createFeedback({
-          interviewId: interviewId!,
-          userId:      userId!,
-          transcript:  messages,
-          feedbackId,
+        // Build full transcript
+        const fullTranscript = messages
+          .map(m => `${m.role}: ${m.content}`)
+          .join('\n');
+
+        console.log('[Agent] Building transcript:', fullTranscript.length, 'chars');
+
+        // Fetch interview to get context (role, field, stage)
+        const interview = await getInterviewById(interviewId!);
+        if (!interview) throw new Error('Interview not found');
+
+        // Persist transcript so reevaluation is possible from feedback page
+        await saveTranscript(interviewId!, fullTranscript);
+
+        const interviewContext = {
+          role:  interview.role  || 'Candidate',
+          field: interview.field || 'General',
+          stage: (interview.stage as 'student' | 'freshgrad' | 'experienced') || 'experienced',
+        };
+
+        console.log('[Agent] Calling /api/evaluate-interview...');
+
+        const response = await fetch('/api/evaluate-interview', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            interviewId:      interview.id ?? interviewId,
+            userId:           userId!,
+            fullTranscript,
+            questions:        interview.questions,
+            interviewContext,
+          }),
         });
 
-        if (success && id) {
-          router.push(`/interview/${interviewId}/feedback`);
-        } else {
-          console.log('Error saving feedback');
-          router.push('/');
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || 'Evaluation failed');
         }
+
+        const result = await response.json();
+        console.log('[Agent] Evaluation complete:', result.evaluationId);
+        console.log('[Agent] Overall score:', result.preview.overallScore, '/5.0');
+
+        router.push(`/interview/${interviewId}/feedback`);
+      } catch (error) {
+        console.error('[Agent] Evaluation error:', error);
+        const message = error instanceof Error ? error.message : 'Evaluation failed';
+        setError(`Evaluation failed: ${message}. Please try again.`);
       } finally {
         setIsProcessingFeedback(false);
       }
@@ -218,6 +254,8 @@ const Agent = ({
   // ── Derived ─────────────────────────────────────────────────────────────
 
   const latestMessage            = messages[messages.length - 1]?.content;
+  const latestRole               = messages[messages.length - 1]?.role;
+  const latestSpeaker            = latestRole === 'user' ? (userName ?? 'You') : 'Interviewer';
   const isCallInactiveOrFinished = callStatus === CallStatus.INACTIVE || callStatus === CallStatus.FINISHED;
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -229,7 +267,7 @@ const Agent = ({
       <LoadingOverlay
         isOpen={isProcessingFeedback}
         title="Analyzing Your Interview"
-        description="Our AI judges are evaluating your performance..."
+        description={FEEDBACK_STEPS[feedbackStep]}
       />
 
     <div className="space-y-6">
@@ -269,6 +307,7 @@ const Agent = ({
                   )}
                 </div>
                 <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-0.5">Interviewer</p>
                   <h3 className="text-xl font-bold gradient-bg bg-clip-text text-transparent">
                     AI Interviewer
                   </h3>
@@ -278,6 +317,21 @@ const Agent = ({
                       : 'Ready to start'}
                   </p>
                 </div>
+
+                {/* AI audio level — visible during active call */}
+                {isCallActive && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex gap-0.5 items-end h-5">
+                      {[0.2, 0.4, 0.6, 0.8, 1.0].map((threshold, i) => (
+                        <div
+                          key={i}
+                          className={`w-1 rounded-full transition-all duration-75 ${aiVolume > threshold ? 'bg-purple-500' : 'bg-gray-600'}`}
+                          style={{ height: aiVolume > threshold ? `${60 + i * 10}%` : '20%' }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -298,30 +352,21 @@ const Agent = ({
                   )}
                 </div>
                 <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-0.5">Interviewee</p>
                   <h3 className="text-xl font-bold">{userName}</h3>
                   <p className="text-sm text-muted-foreground">
                     {callStatus === CallStatus.ACTIVE ? 'In interview' : 'Candidate'}
                   </p>
                 </div>
 
-                {/* User volume indicator — visible during active call */}
+                {/* User speaking indicator — visible when user's turn (AI not speaking) */}
                 {isCallActive && (
                   <div className="flex items-center gap-2 mt-1">
                     <Mic
-                      className={`w-4 h-4 transition-all ${userVolume > 0.1 ? 'text-green-500' : 'text-gray-400'}`}
-                      style={{ transform: `scale(${0.8 + userVolume * 0.5})` }}
+                      className={`w-4 h-4 transition-all ${!isSpeaking ? 'text-green-500' : 'text-gray-400'}`}
                     />
-                    <div className="flex gap-0.5 items-end h-5">
-                      {[0.2, 0.4, 0.6, 0.8, 1.0].map((threshold, i) => (
-                        <div
-                          key={i}
-                          className={`w-1 rounded-full transition-all duration-75 ${userVolume > threshold ? 'bg-green-500' : 'bg-gray-600'}`}
-                          style={{ height: userVolume > threshold ? `${60 + i * 10}%` : '20%' }}
-                        />
-                      ))}
-                    </div>
                     <span className="text-xs text-gray-400">
-                      {userVolume > 0.1 ? 'Speaking' : 'Listening'}
+                      {!isSpeaking ? 'Speaking' : 'Listening'}
                     </span>
                   </div>
                 )}
@@ -340,6 +385,11 @@ const Agent = ({
             <h3 className="font-semibold">Live Transcript</h3>
           </div>
           <div className="min-h-[80px] p-4 rounded-lg bg-secondary/50">
+            {latestMessage && (
+              <p className="text-xs font-semibold text-muted-foreground mb-1">
+                {latestSpeaker}:
+              </p>
+            )}
             <p className={cn(
               'text-sm leading-relaxed transition-opacity duration-500',
               latestMessage ? 'opacity-100' : 'opacity-50'

@@ -77,10 +77,13 @@ ${formattedQuestions}
 5. PACING: If the candidate's answer becomes very long (roughly 3+ minutes or
    clearly tangential), gently interject: "That's really helpful context —
    in the interest of time, let me ask you the next one." Do this warmly.
-6. After ALL questions and any follow-ups are complete, deliver a brief,
+6. LAST QUESTION RULE: After the candidate answers question ${totalQuestions},
+   you MUST NOT say "next question", "let's move on", or any forward-looking phrase.
+   That is the final question. Deliver the wrap-up immediately.
+7. After ALL ${totalQuestions} questions and any follow-ups are complete, deliver a brief,
    encouraging wrap-up: summarize 1-2 strengths you noticed, tell them
    their detailed results will be ready shortly, thank them warmly, and say goodbye.
-7. Then end the call.
+8. Then end the call.
 
 [Voice Style]
 - Use natural filler occasionally: "So...", "Alright...", "Okay, great..."
@@ -196,6 +199,10 @@ ${formattedQuestions}
         ],
       },
     ],
+
+    // ── Auto end call after AI says goodbye ──────────────────────────────
+    endCallFunctionEnabled: true,
+    endCallMessage: "Thank you for your time today. Your evaluation will be ready shortly. Good luck!",
 
     // ── Recording ─────────────────────────────────────────────────────────
     recordingEnabled: true,

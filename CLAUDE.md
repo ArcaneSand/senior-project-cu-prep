@@ -24,7 +24,7 @@ No test framework is configured. The `app/__tests__/evaluation/` directory exist
 ### Data Layer
 Firebase Firestore (no ORM) with two collections:
 - `interviews` — stores role, level, techstack, questions[], userId, finalized flag
-- `feedbacks` — stores scores across 5 categories, strengths, areasForImprovement, finalAssessment
+- `evaluations` — stores scores across 5 categories, strengths, areasForImprovement, finalAssessment
 
 Server actions in `lib/actions/` use `firebase-admin` (server-side). Client components use `firebase/client.ts`.
 
@@ -54,6 +54,7 @@ GOOGLE_GENERATIVE_AI_API_KEY
 ## Notes
 - `next.config.ts` ignores TypeScript and ESLint errors during build (`ignoreBuildErrors: true`, `ignoreDuringBuilds: true`)
 - Firebase Admin is initialized once (singleton pattern) in `firebase/admin.ts` using a service account
+- when using model from this.model = googleAI('model name'); use model from `lib\ai.config.ts`
 
 ## Conventions\
 - TypeScript strict, no `any`\

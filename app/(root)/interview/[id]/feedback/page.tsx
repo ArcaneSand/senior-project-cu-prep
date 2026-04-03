@@ -1,330 +1,479 @@
-import dayjs from "dayjs";
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { Calendar, Star, TrendingUp, Sparkles, CheckCircle, AlertCircle, Home, RotateCcw, Brain, Clock } from "lucide-react";
+'use client';
 
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { ChevronDown, ChevronUp, CheckCircle, AlertCircle, Home, RotateCcw, Brain, RefreshCw } from 'lucide-react';
+import { getEvaluationByInterview, getEvaluationById } from '@/lib/actions/evaluation.action';
+import { getInterviewById } from '@/lib/actions/general.action';
+import { StoredEvaluation } from '@/types/evaluation';
 import {
-  getFeedbackByInterviewId,
-  getInterviewById,
-} from "@/lib/actions/general.action";
-import { getEvaluationsByInterview } from "@/lib/actions/evaluation.action";
-import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/actions/auth.action";
-import JudgeCard from "@/components/evaluation/JudgeCard";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
 
-const Feedback = async ({ params }: RouteParams) => {
-  const { id } = await params;
-  const user = await getCurrentUser();
+export default function FeedbackPage() {
+  const params = useParams();
+  const router = useRouter();
+  const interviewId = params.id as string;
 
-  const interview = await getInterviewById(id);
-  if (!interview) redirect("/");
+  const [evaluation, setEvaluation] = useState<StoredEvaluation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [questionsOpen, setQuestionsOpen] = useState(false);
+  const [isReevaluating, setIsReevaluating] = useState(false);
+  const [reevalMessage, setReevalMessage] = useState<string | null>(null);
 
-  const feedback = await getFeedbackByInterviewId({
-    interviewId: id,
-    userId: user?.id!,
-  });
+  useEffect(() => {
+    async function loadEvaluation() {
+      try {
+        setLoading(true);
+        const data = await getEvaluationByInterview(interviewId);
+        if (!data) {
+          setError('No evaluation found for this interview.');
+          return;
+        }
+        setEvaluation(data);
+      } catch (err) {
+        console.error('[Feedback] Error loading evaluation:', err);
+        setError('Failed to load evaluation.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadEvaluation();
+  }, [interviewId]);
 
-  const evaluations = await getEvaluationsByInterview(id);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+          <p className="text-muted-foreground">Loading your feedback...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Calculate color based on score
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-600 dark:text-green-400";
-    if (score >= 60) return "text-yellow-600 dark:text-yellow-400";
-    return "text-red-600 dark:text-red-400";
-  };
+  if (error || !evaluation) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <p className="text-destructive">{error ?? 'Evaluation not found'}</p>
+          <Button variant="outline" onClick={() => router.push('/')}>
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-  const getScoreBg = (score: number) => {
-    if (score >= 80) return "bg-green-100 dark:bg-green-900/30";
-    if (score >= 60) return "bg-yellow-100 dark:bg-yellow-900/30";
-    return "bg-red-100 dark:bg-red-900/30";
-  };
+  async function handleReevaluate() {
+    try {
+      setIsReevaluating(true);
+      setReevalMessage(null);
+
+      console.log('[Reevaluate] Fetching interview data...');
+      const interview = await getInterviewById(interviewId);
+      if (!interview) throw new Error('Interview not found');
+
+      if (!interview.transcript) {
+        throw new Error('No transcript saved for this interview. Complete a new interview first.');
+      }
+
+      console.log('[Reevaluate] Calling evaluation API...');
+      const response = await fetch('/api/evaluate-interview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interviewId,
+          userId: interview.userId,
+          fullTranscript: interview.transcript,
+          questions: interview.questions,
+          interviewContext: {
+            role:  interview.role  || 'Candidate',
+            field: interview.field || 'General',
+            stage: (interview.stage as 'student' | 'freshgrad' | 'experienced') || 'experienced',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Reevaluation failed');
+      }
+
+      const result = await response.json();
+      console.log('[Reevaluate] Success!', result);
+
+      const newEvaluation = await getEvaluationById(result.evaluationId);
+      if (newEvaluation) setEvaluation(newEvaluation);
+
+      setReevalMessage(`Reevaluation complete! New score: ${result.preview.overallScore.toFixed(1)}/5.0`);
+    } catch (err) {
+      console.error('[Reevaluate] Error:', err);
+      setReevalMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsReevaluating(false);
+    }
+  }
+
+  const rubricDimensions = [
+    { label: 'Coherence & Structure', value: evaluation.centralRubricScores.coherenceStructure },
+    { label: 'Fluency',               value: evaluation.centralRubricScores.fluency },
+    { label: 'Technical',             value: evaluation.centralRubricScores.technical },
+    { label: 'Soft Skills',           value: evaluation.centralRubricScores.softSkill },
+    { label: 'Cultural Fit',          value: evaluation.centralRubricScores.cultural },
+  ];
+
+  const scoreColor = (v: number) =>
+    v >= 4 ? 'text-green-600 dark:text-green-400'
+    : v >= 3 ? 'text-yellow-600 dark:text-yellow-400'
+    : 'text-red-600 dark:text-red-400';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
-      <div className="mx-auto max-w-5xl px-6 py-12 space-y-8">
-        {/* Header Section */}
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-100 dark:bg-purple-900/30 mb-4">
-            <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+      <div className="mx-auto max-w-4xl px-6 py-12 space-y-6">
+
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-100 dark:bg-purple-900/30">
+            <Brain className="w-4 h-4 text-purple-600 dark:text-purple-400" />
             <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
               Interview Complete
             </span>
           </div>
-
-          <h1 className="text-4xl md:text-5xl font-bold">
-            Interview Feedback
-          </h1>
-          <p className="text-xl text-muted-foreground">
-            <span className="capitalize">{interview.role}</span> Position
-          </p>
+          <h1 className="text-3xl font-bold">Your Interview Feedback</h1>
         </div>
 
-        {/* Score Overview Card */}
-        <div className="rounded-2xl border bg-card shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 p-8">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-              {/* Overall Score */}
-              <div className="flex items-center gap-6">
-                <div className="relative">
-                  <div className="w-24 h-24 rounded-full gradient-bg opacity-20 blur-xl absolute" />
-                  <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                    <div className="w-20 h-20 rounded-full bg-background flex items-center justify-center">
-                      <span className="text-3xl font-bold gradient-bg bg-clip-text text-transparent">
-                        {feedback?.totalScore}
-                      </span>
-                    </div>
-                  </div>
+        {/* ── SECTION 1: Overall Score + Confidence (Always Visible) ── */}
+        <div className="rounded-2xl border bg-card shadow-lg p-8">
+          <div className="flex flex-col sm:flex-row items-center gap-8">
+            {/* Score circle */}
+            <div className="relative shrink-0">
+              <div className="w-28 h-28 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
+                <div className="w-24 h-24 rounded-full bg-background flex flex-col items-center justify-center">
+                  <span className="text-3xl font-bold text-purple-600 dark:text-purple-400 leading-none">
+                    {evaluation.overallScore.toFixed(1)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">/ 5.0</span>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Star className="w-5 h-5 text-purple-600 dark:text-purple-400 fill-purple-600 dark:fill-purple-400" />
-                    <h2 className="text-2xl font-bold">Overall Score</h2>
-                  </div>
-                  <p className="text-muted-foreground">Out of 100 points</p>
-                </div>
-              </div>
-
-              {/* Date */}
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background/50">
-                <Calendar className="w-5 h-5 text-muted-foreground" />
-                <span className="text-sm">
-                  {feedback?.createdAt
-                    ? dayjs(feedback.createdAt).format("MMM D, YYYY h:mm A")
-                    : "N/A"}
-                </span>
               </div>
             </div>
-          </div>
 
-          {/* Final Assessment */}
-          <div className="p-8 border-t">
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              Final Assessment
-            </h3>
-            <p className="text-muted-foreground leading-relaxed">
-              {feedback?.finalAssessment}
-            </p>
+            <div className="flex-1 space-y-1 text-center sm:text-left">
+              <h2 className="text-2xl font-bold">Overall Score</h2>
+              <p className="text-muted-foreground">
+                Confidence: <span className="font-semibold text-foreground">{Math.round(evaluation.confidenceScore * 100)}%</span>
+              </p>
+              {evaluation.judgeAgreement.disagreements.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Judges differed on: {evaluation.judgeAgreement.disagreements.join(', ')}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Category Scores Grid */}
-        <div>
-          <h2 className="text-2xl font-bold mb-6">Performance Breakdown</h2>
-          <div className="grid gap-4">
-            {feedback?.categoryScores?.map((category, index) => (
-              <div
-                key={index}
-                className="rounded-xl border bg-card hover:shadow-md transition-all duration-300 overflow-hidden"
-              >
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-semibold">{category.name}</h3>
-                    <div className={`px-4 py-1.5 rounded-full ${getScoreBg(category.score)}`}>
-                      <span className={`text-lg font-bold ${getScoreColor(category.score)}`}>
-                        {category.score}/100
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="w-full h-2 bg-secondary rounded-full overflow-hidden mb-3">
-                    <div
-                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
-                      style={{ width: `${category.score}%` }}
-                    />
-                  </div>
-
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {category.comment}
-                  </p>
+        {/* ── Central Rubric Breakdown ── */}
+        <div className="rounded-2xl border bg-card shadow p-6 space-y-4">
+          <h2 className="text-xl font-semibold">Rubric Breakdown</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {rubricDimensions.map((dim) => (
+              <div key={dim.label} className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">{dim.label}</span>
+                  <span className={`font-bold ${scoreColor(dim.value)}`}>
+                    {dim.value.toFixed(1)}<span className="text-muted-foreground font-normal">/5</span>
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
+                    style={{ width: `${(dim.value / 5) * 100}%` }}
+                  />
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Strengths and Areas for Improvement */}
+        {/* ── Top 3 Strengths + Improvements (Always Visible) ── */}
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Strengths */}
-          <div className="rounded-xl border bg-card p-6">
+          <div className="rounded-2xl border bg-card shadow p-6">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <h3 className="text-xl font-bold">Strengths</h3>
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              <h3 className="font-bold text-lg">Key Strengths</h3>
             </div>
-            <ul className="space-y-3">
-              {feedback?.strengths?.map((strength, index) => (
-                <li key={index} className="flex items-start gap-3">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0" />
-                  <span className="text-sm text-muted-foreground leading-relaxed">
-                    {strength}
+            <ol className="space-y-3">
+              {evaluation.strengths.map((s, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-xs font-bold flex items-center justify-center">
+                    {i + 1}
                   </span>
+                  <span className="text-sm text-muted-foreground leading-relaxed">{s}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
 
-          {/* Areas for Improvement */}
-          <div className="rounded-xl border bg-card p-6">
+          <div className="rounded-2xl border bg-card shadow p-6">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <h3 className="text-xl font-bold">Areas for Improvement</h3>
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+              <h3 className="font-bold text-lg">Areas for Improvement</h3>
             </div>
-            <ul className="space-y-3">
-              {feedback?.areasForImprovement?.map((area, index) => (
-                <li key={index} className="flex items-start gap-3">
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-2 flex-shrink-0" />
-                  <span className="text-sm text-muted-foreground leading-relaxed">
-                    {area}
+            <ol className="space-y-3">
+              {evaluation.improvements.map((imp, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 text-xs font-bold flex items-center justify-center">
+                    {i + 1}
                   </span>
+                  <span className="text-sm text-muted-foreground leading-relaxed">{imp}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
         </div>
 
-        {/* Multi-Judge Evaluation */}
-        <div>
-          <div className="flex items-center gap-2 mb-6">
-            <Brain className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            <h2 className="text-2xl font-bold">AI Judge Analysis</h2>
-          </div>
+        {/* ── SECTION 2: Question Details (Collapsed by Default) ── */}
+        {evaluation.questions && evaluation.questions.length > 0 && (
+          <Collapsible open={questionsOpen} onOpenChange={setQuestionsOpen}>
+            <CollapsibleTrigger className="w-full rounded-2xl border bg-card shadow p-6 hover:bg-secondary/40 transition-colors">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  📝 Question Details
+                  <span className="text-sm text-muted-foreground font-normal">
+                    ({evaluation.questions.length} questions)
+                  </span>
+                </h2>
+                {questionsOpen ? (
+                  <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                )}
+              </div>
+            </CollapsibleTrigger>
 
-          {evaluations.length === 0 ? (
-            <div className="rounded-xl border bg-card p-6 flex items-center gap-4 text-muted-foreground">
-              <Clock className="w-5 h-5 shrink-0 animate-pulse" />
-              <p className="text-sm">
-                Detailed AI judge evaluations are still processing. Refresh this page in a few moments to see per-question breakdowns.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {evaluations.map((ev, idx) => {
-                const pct = Math.round((ev.aggregatedScores.overall.mean / 4) * 100);
-                const scoreColor =
-                  pct >= 75 ? "text-green-600 dark:text-green-400" :
-                  pct >= 50 ? "text-yellow-600 dark:text-yellow-400" :
-                  "text-red-600 dark:text-red-400";
-                const scoreBg =
-                  pct >= 75 ? "bg-green-100 dark:bg-green-900/30" :
-                  pct >= 50 ? "bg-yellow-100 dark:bg-yellow-900/30" :
-                  "bg-red-100 dark:bg-red-900/30";
-
-                return (
-                  <div key={ev.id} className="rounded-xl border bg-card overflow-hidden">
-                    {/* Question header */}
-                    <div className="bg-secondary/40 px-6 py-4 flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                          Question {idx + 1}
-                        </p>
-                        <p className="font-medium">{ev.question}</p>
-                      </div>
-                      <div className={`shrink-0 px-3 py-1 rounded-full text-sm font-bold ${scoreBg} ${scoreColor}`}>
-                        {ev.aggregatedScores.overall.mean.toFixed(1)}/4
-                      </div>
-                    </div>
-
-                    <div className="p-6 space-y-5">
-                      {/* Individual judge evaluations — collapsed by default */}
-                      {ev.judgeEvaluations?.length > 0 && (
-                        <div className="space-y-3 pt-2 border-t border-gray-700/50">
-                          <p className="text-sm font-semibold text-muted-foreground">
-                            Individual Judge Evaluations
-                            <span className="ml-2 text-xs font-normal">— click to expand</span>
-                          </p>
-                          {ev.judgeEvaluations.map((judge, jIdx) => {
-                            // Strip Firestore Timestamp (class instance) — not serializable to Client Components
-                            const { timestamp: _ts, ...serializableJudge } = judge;
-                            return (
-                              <JudgeCard
-                                key={judge.judgeId}
-                                evaluation={serializableJudge}
-                                judgeNumber={jIdx + 1}
-                                totalJudges={ev.judgeEvaluations.length}
-                              />
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Synthesized feedback */}
-                      <div className="grid md:grid-cols-2 gap-4">
-                        {ev.synthesizedFeedback.topStrengths.length > 0 && (
-                          <div>
-                            <p className="text-sm font-semibold text-green-700 dark:text-green-400 mb-2">Strengths</p>
-                            <ul className="space-y-1.5">
-                              {ev.synthesizedFeedback.topStrengths.map((s, i) => (
-                                <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 shrink-0" />
-                                  {s}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {ev.synthesizedFeedback.topImprovements.length > 0 && (
-                          <div>
-                            <p className="text-sm font-semibold text-orange-700 dark:text-orange-400 mb-2">Improvements</p>
-                            <ul className="space-y-1.5">
-                              {ev.synthesizedFeedback.topImprovements.map((s, i) => (
-                                <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 shrink-0" />
-                                  {s}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Disagreement flags */}
-                      {ev.synthesizedFeedback.disagreementFlags.length > 0 && (
-                        <p className="text-xs text-muted-foreground border rounded-lg px-3 py-2">
-                          Judges disagreed on: {ev.synthesizedFeedback.disagreementFlags.join(", ")}
-                        </p>
-                      )}
-
-                      {/* Confidence */}
-                      <p className="text-xs text-muted-foreground">
-                        Confidence: {Math.round(ev.confidenceScore * 100)}%
-                      </p>
-
-                      
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+            <CollapsibleContent className="space-y-4 pt-4">
+              {evaluation.questions.map((q, qIdx) => (
+                <QuestionCard
+                  key={q.questionId}
+                  question={q}
+                  index={qIdx}
+                  total={evaluation.questions.length}
+                />
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 pt-4">
-          <Button asChild variant="outline" className="flex-1">
-            <Link href="/" className="flex items-center justify-center gap-2">
-              <Home className="w-4 h-4" />
-              Back to Dashboard
-            </Link>
+          <Button variant="outline" className="flex-1" onClick={() => router.push('/')}>
+            <Home className="w-4 h-4 mr-2" />
+            Back to Dashboard
           </Button>
-
-          <Button asChild className="flex-1 relative group">
-            <Link href={`/interview/${id}`} className="flex items-center justify-center gap-2">
-              <div className="absolute -inset-0.5 gradient-bg rounded-lg blur opacity-30 group-hover:opacity-50 transition" />
-              <span className="relative flex items-center gap-2">
-                <RotateCcw className="w-4 h-4" />
-                Retake Interview
-              </span>
-            </Link>
+          <Button variant="outline" className="flex-1" onClick={() => router.push(`/interview/${interviewId}`)}>
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Retake Interview
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={handleReevaluate}
+            disabled={isReevaluating}
+            title="Retrigger AI evaluation using the saved transcript — no need to redo the interview"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isReevaluating ? 'animate-spin' : ''}`} />
+            {isReevaluating ? 'Reevaluating...' : 'Reevaluate'}
           </Button>
         </div>
+
+        {/* Reevaluation status */}
+        {isReevaluating && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 p-4 text-sm text-blue-700 dark:text-blue-400">
+            <p className="font-medium">⏳ Reevaluating interview… this takes 15–25 seconds.</p>
+            <p className="text-xs mt-1 opacity-75">StarJudge → CompetencyJudge → Aggregator</p>
+          </div>
+        )}
+        {reevalMessage && !isReevaluating && (
+          <div className={`rounded-xl border p-4 text-sm ${
+            reevalMessage.startsWith('Failed')
+              ? 'border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 text-red-700 dark:text-red-400'
+              : 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 text-green-700 dark:text-green-400'
+          }`}>
+            {reevalMessage}
+          </div>
+        )}
+
       </div>
     </div>
   );
-};
+}
 
-export default Feedback;
+// ── Sub-component: single question card ─────────────────────────────────────
+
+function QuestionCard({
+  question,
+  index,
+  total,
+}: {
+  question: StoredEvaluation['questions'][number];
+  index: number;
+  total: number;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="w-full rounded-xl border bg-card p-5 hover:bg-secondary/30 transition-colors text-left">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">
+              Question {index + 1} of {total}
+            </p>
+            <p className="font-medium leading-snug">{question.question}</p>
+          </div>
+          {open ? (
+            <ChevronUp className="shrink-0 h-5 w-5 text-muted-foreground mt-1" />
+          ) : (
+            <ChevronDown className="shrink-0 h-5 w-5 text-muted-foreground mt-1" />
+          )}
+        </div>
+      </CollapsibleTrigger>
+
+      <CollapsibleContent className="rounded-xl border border-t-0 bg-secondary/20 px-5 pb-5 space-y-4">
+        {/* Answer */}
+        {question.answer && (
+          <div className="pt-4">
+            <p className="text-xs font-semibold text-muted-foreground mb-2">Your Answer</p>
+            <p className="text-sm text-muted-foreground leading-relaxed bg-background/60 rounded-lg p-3">
+              {question.answer}
+            </p>
+          </div>
+        )}
+
+        {/* Judge evaluations — each collapsed */}
+        {question.judgeEvaluations?.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground pt-1">Judge Evaluations</p>
+            {question.judgeEvaluations.map((judge, jIdx) => (
+              <JudgeCard
+                key={judge.judgeId}
+                judge={judge}
+                index={jIdx}
+                total={question.judgeEvaluations.length}
+              />
+            ))}
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+// ── Helper: coerce a judge strength/improvement item to a display string ──────
+function toDisplayString(item: unknown): string {
+  if (typeof item === 'string') return item;
+  if (item && typeof item === 'object') {
+    const obj = item as Record<string, unknown>;
+    if (typeof obj.improvement === 'string') {
+      return obj.problem ? `${obj.problem} → ${obj.improvement}` : obj.improvement;
+    }
+    if (typeof obj.problem === 'string') return obj.problem;
+    return JSON.stringify(obj);
+  }
+  return String(item);
+}
+
+// ── Sub-component: single judge evaluation card ──────────────────────────────
+
+function JudgeCard({
+  judge,
+  index,
+  total,
+}: {
+  judge: StoredEvaluation['questions'][number]['judgeEvaluations'][number];
+  index: number;
+  total: number;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="w-full rounded-lg border bg-card px-4 py-3 hover:bg-secondary/30 transition-colors text-left">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground">
+              Judge {index + 1} of {total}
+            </p>
+            <p className="font-medium text-sm">{judge.judgeName}</p>
+            <p className="text-xs text-muted-foreground">
+              Score: {judge.overallScore.toFixed(1)} / 4.0
+            </p>
+          </div>
+          {open ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+      </CollapsibleTrigger>
+
+      <CollapsibleContent className="rounded-b-lg border border-t-0 bg-card px-4 pb-4 space-y-4">
+        {/* Dimensions */}
+        <div className="pt-3">
+          <p className="text-xs font-semibold text-muted-foreground mb-2">Dimension Scores</p>
+          <div className="space-y-2">
+            {judge.dimensions.map((dim, i) => (
+              <div key={i}>
+                <div className="flex justify-between text-xs mb-0.5">
+                  <span className="font-medium">{dim.name}</span>
+                  <span className="font-bold">{dim.score}/{dim.maxScore}</span>
+                </div>
+                {dim.reasoning && (
+                  <p className="text-xs text-muted-foreground">{dim.reasoning}</p>
+                )}
+                {dim.evidence?.length > 0 && (
+                  <p className="text-xs italic text-muted-foreground mt-0.5">
+                    &quot;{dim.evidence[0]}&quot;
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Strengths */}
+        {judge.strengths?.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-green-600 dark:text-green-400 mb-1">✓ Strengths</p>
+            <ul className="space-y-1">
+              {judge.strengths.map((s, i) => (
+                <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                  <span className="text-green-500 shrink-0">•</span>
+                  {toDisplayString(s)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Improvements */}
+        {judge.improvements?.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 mb-1">→ Improvements</p>
+            <ul className="space-y-1">
+              {judge.improvements.map((imp, i) => (
+                <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                  <span className="text-orange-500 shrink-0">•</span>
+                  {toDisplayString(imp)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
