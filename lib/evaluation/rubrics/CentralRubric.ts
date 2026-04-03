@@ -63,17 +63,6 @@ export const CentralRubric: { dimensions: RubricDimension[] } = {
         1: "Minimal or no soft skills demonstrated. Poor communication throughout.",
       },
     },
-    {
-      name: "Cultural",
-      description: "Alignment with organization values, attitudes, and work style",
-      scale: {
-        5: "Strongly aligns with organizational culture. Clear examples of shared values and attitudes.",
-        4: "Generally aligns well with organizational culture with only minor gaps.",
-        3: "Moderate alignment but lacks clear examples or consistency.",
-        2: "Limited alignment. Few indications of shared values or work style.",
-        1: "Little to no alignment or demonstrates attitudes that may conflict with organizational culture.",
-      },
-    },
   ],
 };
 

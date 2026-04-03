@@ -35,7 +35,6 @@ export interface CentralRubricScores {
   fluency: number;             // 1-5
   technical: number;           // 1-5
   softSkill: number;           // 1-5
-  cultural: number;            // 1-5
 }
 
 // ============================================================

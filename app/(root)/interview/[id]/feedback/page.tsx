@@ -110,7 +110,7 @@ export default function FeedbackPage() {
       const newEvaluation = await getEvaluationById(result.evaluationId);
       if (newEvaluation) setEvaluation(newEvaluation);
 
-      setReevalMessage(`Reevaluation complete! New score: ${result.preview.overallScore.toFixed(1)}/5.0`);
+      setReevalMessage(`Reevaluation complete! New band score: ${result.preview.overallScore}/5`);
     } catch (err) {
       console.error('[Reevaluate] Error:', err);
       setReevalMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -124,13 +124,19 @@ export default function FeedbackPage() {
     { label: 'Fluency',               value: evaluation.centralRubricScores.fluency },
     { label: 'Technical',             value: evaluation.centralRubricScores.technical },
     { label: 'Soft Skills',           value: evaluation.centralRubricScores.softSkill },
-    { label: 'Cultural Fit',          value: evaluation.centralRubricScores.cultural },
   ];
 
   const scoreColor = (v: number) =>
     v >= 4 ? 'text-green-600 dark:text-green-400'
     : v >= 3 ? 'text-yellow-600 dark:text-yellow-400'
     : 'text-red-600 dark:text-red-400';
+
+  const getBandDescription = (score: number): string => {
+    if (score >= 5) return "Perfect! Outstanding performance across the board";
+    if (score >= 4) return "Great performance! You're close to mastering this";
+    if (score >= 2.5) return "Good progress! Keep refining your skills";
+    return "Let's practice more — every expert was once a beginner!";
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
@@ -155,15 +161,18 @@ export default function FeedbackPage() {
               <div className="w-28 h-28 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
                 <div className="w-24 h-24 rounded-full bg-background flex flex-col items-center justify-center">
                   <span className="text-3xl font-bold text-purple-600 dark:text-purple-400 leading-none">
-                    {evaluation.overallScore.toFixed(1)}
+                    {evaluation.overallScore}
                   </span>
-                  <span className="text-xs text-muted-foreground">/ 5.0</span>
+                  <span className="text-xs text-muted-foreground">Band / 5</span>
                 </div>
               </div>
             </div>
 
             <div className="flex-1 space-y-1 text-center sm:text-left">
-              <h2 className="text-2xl font-bold">Overall Score</h2>
+              <h2 className="text-2xl font-bold">Overall Band Score</h2>
+              <p className="text-purple-600 dark:text-purple-400 font-semibold">
+                {getBandDescription(evaluation.overallScore)}
+              </p>
               <p className="text-muted-foreground">
                 Confidence: <span className="font-semibold text-foreground">{Math.round(evaluation.confidenceScore * 100)}%</span>
               </p>
@@ -409,7 +418,7 @@ function JudgeCard({
             </p>
             <p className="font-medium text-sm">{judge.judgeName}</p>
             <p className="text-xs text-muted-foreground">
-              Score: {judge.overallScore.toFixed(1)} / 4.0
+              Score: {judge.overallScore.toFixed(1)} / 5.0
             </p>
           </div>
           {open ? (

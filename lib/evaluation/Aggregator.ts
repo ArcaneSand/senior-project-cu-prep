@@ -81,14 +81,14 @@ export class Aggregator {
       model
     );
 
-    // Step 4: Calculate overall score (mean of 5 dimensions, 1-5 scale)
-    const overallScore = this.mean([
+    // Step 4: Calculate overall score (mean of 4 dimensions, rounded to nearest 0.5 band)
+    const rawScore = this.mean([
       centralScores.coherenceStructure,
       centralScores.fluency,
       centralScores.technical,
       centralScores.softSkill,
-      centralScores.cultural,
     ]);
+    const overallScore = Math.round(rawScore * 2) / 2;
 
     // Canonical judge mean (0-4 scale) — mean of all judges' overallScores
     const allJudgeScores = questionEvaluations
@@ -221,7 +221,6 @@ IMPORTANT:
       fluency: z.number().min(1).max(5),
       technical: z.number().min(1).max(5),
       softSkill: z.number().min(1).max(5),
-      cultural: z.number().min(1).max(5),
     });
 
     const { object } = await generateObject({
@@ -253,9 +252,8 @@ Examples:
 - If candidate used STAR structure in 2/3 questions well → Coherence: 4
 - If frequent filler words ("um", "uh") throughout → Fluency: 2-3
 - If technical answers were detailed and accurate → Technical: 4-5
-- If showed poor cultural fit examples → Cultural: 2-3
 
-Return scores for all 5 dimensions on the 1-5 scale.
+Return scores for all 4 dimensions on the 1-5 scale.
       `.trim(),
     });
 
@@ -355,7 +353,6 @@ Return scores for all 5 dimensions on the 1-5 scale.
       centralScores.fluency,
       centralScores.technical,
       centralScores.softSkill,
-      centralScores.cultural,
     ];
 
     const centralConsistency = 1 - this.stdDev(centralScoreValues) / 5;
