@@ -21,15 +21,13 @@ export async function getInterviewsByUserId(
   })) as Interview[];
 }
 
-export async function getInverviewsByID(id: string): Promise<Interview | null> {
-  const interviews = await db.collection("interviews").doc(id).get();
-  return interviews.data() as Interview | null;
-}
-
 export async function getInterviewById(id: string): Promise<Interview | null> {
   const interview = await db.collection("interviews").doc(id).get();
   return interview.data() as Interview | null;
 }
+
+// Alias kept for backward compatibility
+export const getInverviewsByID = getInterviewById;
 
 export async function getFeedbackByInterviewId(
   params: GetFeedbackByInterviewIdParams

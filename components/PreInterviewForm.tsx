@@ -3,9 +3,11 @@
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import FormField from "./FormField";
+import { LoadingOverlay } from "./LoadingOverlay";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useState } from "react";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import { useRouter } from "next/navigation";
@@ -34,6 +36,7 @@ export type PreInterviewFormValues = z.infer<typeof preInterviewFormSchema>;
 
 const PreInterviewForm = () => {
   const router = useRouter();
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const form = useForm<PreInterviewFormValues>({
     resolver: zodResolver(preInterviewFormSchema),
@@ -50,6 +53,7 @@ const PreInterviewForm = () => {
   });
 
   async function onSubmit(values: PreInterviewFormValues) {
+    setIsGenerating(true);
     try {
       const user = await getCurrentUser();
       if (!user) {
@@ -74,10 +78,18 @@ const PreInterviewForm = () => {
     } catch (error) {
       console.error(error);
       toast.error(`Something went wrong: ${error}`);
+    } finally {
+      setIsGenerating(false);
     }
   }
 
   return (
+    <>
+      <LoadingOverlay
+        isOpen={isGenerating}
+        title="Generating Interview Questions"
+        description="Our AI is crafting personalized questions for you..."
+      />
     <div className="flex justify-center lg:min-w-[566px]">
       <div className="flex flex-col gap-6 px-10 max-w-[646px] w-full">
         <Form {...form}>
@@ -176,6 +188,7 @@ const PreInterviewForm = () => {
         </Form>
       </div>
     </div>
+    </>
   );
 };
 

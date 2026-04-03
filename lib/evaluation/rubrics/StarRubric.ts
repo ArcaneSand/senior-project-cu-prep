@@ -59,23 +59,23 @@ export const STAR_RUBRIC = {
       description: "Personal responsibility and specific goal",
       levels: [
         {
-          score: 4,
+          score: 5,
           criteria: "Crystal clear personal responsibility stated explicitly with measurable, specific goal and success criteria"
         },
         {
-          score: 3,
+          score: 4,
           criteria: "Clear personal responsibility stated, goal mentioned but not fully quantified or success criteria somewhat vague"
         },
         {
-          score: 2,
+          score: 3,
           criteria: "Responsibility implied but not explicitly stated, or goal is vague without clear success criteria"
         },
         {
-          score: 1,
+          score: 2,
           criteria: "Unclear what the candidate's personal responsibility was, or goal is extremely vague"
         },
         {
-          score: 0,
+          score: 1,
           criteria: "No task or personal responsibility mentioned, unclear what candidate was trying to achieve"
         }
       ],
@@ -102,23 +102,23 @@ export const STAR_RUBRIC = {
       description: "Specific first-person actions with technical details",
       levels: [
         {
-          score: 4,
+          score: 5,
           criteria: "Multiple specific first-person actions with technical depth, clear sequence, and explanation of decision-making process"
         },
         {
-          score: 3,
+          score: 4,
           criteria: "2-3 clear first-person actions with some technical details, but could be more specific or detailed"
         },
         {
-          score: 2,
+          score: 3,
           criteria: "Actions mentioned but primarily team-focused (we/they) or lacking technical specificity and depth"
         },
         {
-          score: 1,
+          score: 2,
           criteria: "Very vague actions or almost entirely team-focused with no clear individual contribution"
         },
         {
-          score: 0,
+          score: 1,
           criteria: "No actions described, or completely unclear what the candidate actually did"
         }
       ],
@@ -149,23 +149,23 @@ export const STAR_RUBRIC = {
       description: "Quantified outcome and lessons learned",
       levels: [
         {
-          score: 4,
+          score: 5,
           criteria: "Specific quantified metrics (numbers, percentages, time saved) AND meaningful lessons learned or insights gained"
         },
         {
-          score: 3,
+          score: 4,
           criteria: "Quantified results with specific numbers OR detailed lessons learned, but not both; or metrics present but not very specific"
         },
         {
-          score: 2,
+          score: 3,
           criteria: "Vague positive outcome mentioned without specific numbers or meaningful quantification"
         },
         {
-          score: 1,
+          score: 2,
           criteria: "Outcome barely mentioned, extremely vague, or unclear if successful"
         },
         {
-          score: 0,
+          score: 1,
           criteria: "No result or outcome provided, story incomplete"
         }
       ],

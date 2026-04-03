@@ -97,12 +97,24 @@ const AuthForm = ({ type }: { type: FormType }) => {
   const isSignIn = type === "sign-in";
 
   return (
-    <div className="flex justify-center lg:min-w-[566px]">
-      <div className="flex flex-col gap-6 py-14 px-10 max-w-[646px] w-full">
+    <div className="w-full max-w-md mx-auto px-4">
+      <div className="rounded-2xl border border-border bg-bgc-2 p-8 space-y-6">
+        {/* Header */}
+        <div className="text-center space-y-1">
+          <h1 className="text-2xl font-bold text-foreground">
+            {isSignIn ? "Welcome back" : "Create your account"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {isSignIn
+              ? "Sign in to continue your interview practice"
+              : "Start practising with AI-powered interviews"}
+          </p>
+        </div>
+
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="w-full space-y-6 mt-4 form"
+            className="space-y-4"
           >
             {!isSignIn && (
               <FormField
@@ -118,7 +130,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
               control={form.control}
               name="email"
               label="Email"
-              placeholder="Your email address"
+              placeholder="you@example.com"
               type="email"
             />
 
@@ -130,19 +142,19 @@ const AuthForm = ({ type }: { type: FormType }) => {
               type="password"
             />
 
-            <Button className="gradient-bg" type="submit">
-              {isSignIn ? "Sign In" : "Create an Account"}
+            <Button className="gradient-bg w-full mt-2" type="submit">
+              {isSignIn ? "Sign In" : "Create Account"}
             </Button>
           </form>
         </Form>
 
-        <p className="text-center">
-          {isSignIn ? "No account yet?" : "Have an account already?"}
+        <p className="text-center text-sm text-muted-foreground">
+          {isSignIn ? "No account yet?" : "Already have an account?"}
           <Link
-            href={!isSignIn ? "/sign-in" : "/sign-up"}
-            className="font-bold text-user-primary ml-1"
+            href={isSignIn ? "/sign-up" : "/sign-in"}
+            className="font-semibold text-foreground ml-1 hover:underline"
           >
-            {!isSignIn ? "Sign In" : "Sign Up"}
+            {isSignIn ? "Sign Up" : "Sign In"}
           </Link>
         </p>
       </div>
