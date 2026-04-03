@@ -4,6 +4,7 @@ import { createFeedback } from '@/lib/actions/general.action';
 import { buildVapiAssistantConfig } from '@/lib/vapi-action/interview-formatter';
 import { cn } from '@/lib/utils';
 import { vapi } from '@/lib/vapi.sdk';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react'
 
@@ -194,7 +195,12 @@ const Agent = ({
                     isSpeaking ? "bg-purple-400/30 animate-pulse" : "bg-transparent"
                   )} />
                   <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white dark:border-gray-800 shadow-2xl">
-                    <div className="bg-black w-full h-full" />
+                    <Image
+                      src="/ai-interviewer.png"
+                      alt="AI Interviewer"
+                      fill
+                      className="object-cover"
+                    />
                   </div>
                   {isSpeaking && (
                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2">
